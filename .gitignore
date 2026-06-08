@@ -43,3 +43,6 @@ venv/
 coverage/
 .coverage
 htmlcov/
+
+# Docs (excluded from version control)
+docs/
