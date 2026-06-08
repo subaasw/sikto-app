@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api import __version__
 from api.config import get_settings
-from api.routers import health
+from api.routers import chat, health, lessons, notebooks, sources
 
 settings = get_settings()
 
@@ -21,6 +21,10 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(sources.router)
+app.include_router(lessons.router)
+app.include_router(chat.router)
+app.include_router(notebooks.router)
 
 
 @app.get("/")
