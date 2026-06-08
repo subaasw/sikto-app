@@ -2,12 +2,12 @@ import { type ButtonHTMLAttributes, forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 
 const base =
-  'inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50';
+  'pixel-press inline-flex items-center justify-center gap-2 border-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50';
 
 const variants = {
-  primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
-  secondary: 'border border-border bg-surface text-foreground hover:bg-muted',
-  ghost: 'text-foreground hover:bg-muted',
+  primary: 'border-border bg-primary text-primary-foreground shadow-pixel-sm hover:brightness-95',
+  secondary: 'border-border bg-surface text-foreground shadow-pixel-sm hover:bg-muted',
+  ghost: 'border-transparent text-foreground hover:bg-muted',
 } as const;
 
 const sizes = {

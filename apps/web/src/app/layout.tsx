@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import { GeistPixelSquare } from 'geist/font/pixel';
 import './globals.css';
 import { AppShell } from '@/components/app-shell';
 
@@ -18,13 +19,15 @@ export const metadata: Metadata = {
   description: 'Video automation and microlearning platform.',
 };
 
+const fontVars = `${geistSans.variable} ${geistMono.variable} ${GeistPixelSquare.variable}`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${fontVars} h-full antialiased`}>
       <body className="min-h-full bg-background font-sans text-foreground">
         <AppShell>{children}</AppShell>
       </body>

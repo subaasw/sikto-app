@@ -42,7 +42,7 @@ export function SourceInput() {
   }
 
   const fieldClass =
-    'w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-ring/40';
+    'w-full border-2 border-border bg-surface px-4 py-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring';
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">

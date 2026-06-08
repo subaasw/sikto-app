@@ -7,44 +7,79 @@
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
+  --color-border-soft: var(--border-soft);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-pixel: var(--font-geist-pixel-square);
+  --shadow-pixel: 4px 4px 0 0 var(--border);
+  --shadow-pixel-sm: 2px 2px 0 0 var(--border);
 }
 
 :root {
-  --background: #fafafa;
+  /* light — warm paper + lime */
+  --background: #f6f6ef;
   --surface: #ffffff;
-  --foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --border: #e4e4e7;
-  --primary: #4f46e5;
-  --primary-foreground: #ffffff;
-  --ring: #6366f1;
+  --foreground: #14160e;
+  --muted: #eceadf;
+  --muted-foreground: #6c7060;
+  --border: #14160e;
+  --border-soft: #d7d6c8;
+  --primary: #84cc16;
+  --primary-foreground: #14160e;
+  --ring: #65a30d;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #09090b;
-    --surface: #131316;
-    --foreground: #fafafa;
-    --muted: #1c1c20;
-    --muted-foreground: #a1a1aa;
-    --border: #27272a;
-    --primary: #6366f1;
-    --primary-foreground: #ffffff;
-    --ring: #818cf8;
+    /* dark — green-black + bright lime */
+    --background: #0c0e08;
+    --surface: #14170e;
+    --foreground: #edf2e2;
+    --muted: #1b1f12;
+    --muted-foreground: #9aa285;
+    --border: #2f3720;
+    --border-soft: #242a18;
+    --primary: #a3e635;
+    --primary-foreground: #0c0e08;
+    --ring: #a3e635;
   }
 }
 
 * {
-  border-color: var(--border);
+  border-color: var(--border-soft);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* pixel headings */
+h1,
+h2,
+h3 {
+  font-family: var(--font-pixel);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+/* crisp, blocky rendering for pixel-art assets */
+.pixelated {
+  image-rendering: pixelated;
+  shape-rendering: crispEdges;
+}
+
+/* neobrutalist hard-shadow press interaction */
+.pixel-press {
+  transition:
+    transform 80ms steps(2, end),
+    box-shadow 80ms steps(2, end);
+}
+
+.pixel-press:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 0 var(--border);
 }

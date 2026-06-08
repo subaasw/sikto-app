@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { LibraryBig, MessagesSquare, Sparkles, type LucideIcon } from 'lucide-react';
 import { type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { PixelLogo } from '@/components/pixel-logo';
 
 const nav: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/', label: 'Create', icon: Sparkles },
@@ -17,15 +18,15 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface px-3 py-4 sm:flex">
-        <Link href="/" className="mb-6 flex items-center gap-2 px-2">
-          <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Sparkles className="size-4" />
+      <aside className="hidden w-60 shrink-0 flex-col border-r-2 border-border bg-surface px-3 py-4 sm:flex">
+        <Link href="/" className="mb-8 flex items-center gap-2.5 px-2">
+          <span className="flex size-8 items-center justify-center border-2 border-border bg-primary text-foreground shadow-pixel-sm">
+            <PixelLogo size={20} />
           </span>
-          <span className="text-lg font-semibold tracking-tight">Sikto</span>
+          <span className="font-pixel text-lg tracking-tight">Sikto</span>
         </Link>
 
-        <nav className="flex flex-col gap-1">
+        <nav className="flex flex-col gap-1.5">
           {nav.map((item) => {
             const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
             const Icon = item.icon;
@@ -34,10 +35,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  'flex items-center gap-3 border-2 px-3 py-2 text-sm font-medium transition-colors',
                   active
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    ? 'border-border bg-primary text-foreground shadow-pixel-sm'
+                    : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground',
                 )}
               >
                 <Icon className="size-4" />
@@ -47,7 +48,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <p className="mt-auto px-3 text-xs text-muted-foreground">Microlearning studio</p>
+        <p className="mt-auto px-3 font-pixel text-[0.65rem] uppercase tracking-wide text-muted-foreground">
+          Microlearning studio
+        </p>
       </aside>
 
       <main className="flex-1">{children}</main>
