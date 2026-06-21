@@ -15,6 +15,7 @@ from api.jobs.repository import (
 )
 from api.knowledge.embeddings import embeddings_client_from_settings
 from api.knowledge.vector_store import PgVectorStore
+from api.models import Notebook
 from api.visuals.llm import chat_llm_from_settings
 
 router = APIRouter(tags=["notebooks"])
@@ -54,7 +55,7 @@ class ChatResponse(BaseModel):
     citations: list[CitationResponse]
 
 
-async def _require_notebook(notebook_id: uuid.UUID, session: AsyncSession):
+async def _require_notebook(notebook_id: uuid.UUID, session: AsyncSession) -> Notebook:
     notebook = await get_notebook(session, notebook_id)
     if notebook is None:
         raise HTTPException(status_code=404, detail="notebook not found")

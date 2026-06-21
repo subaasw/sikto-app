@@ -1,5 +1,6 @@
 import httpx
 
+from api.agent.providers import resolve_agent_llm
 from api.config import get_settings
 
 
@@ -40,9 +41,9 @@ class GatewayChatLLM:
 
 
 def chat_llm_from_settings() -> GatewayChatLLM:
-    settings = get_settings()
+    config = resolve_agent_llm(get_settings())
     return GatewayChatLLM(
-        base_url=settings.ai_gateway_base_url,
-        api_key=settings.ai_gateway_api_key,
-        model=settings.planner_model,
+        base_url=config.base_url,
+        api_key=config.api_key,
+        model=config.model,
     )

@@ -15,10 +15,21 @@ dependencies = [
     "alembic>=1.14.0",
     "httpx>=0.28.1",
     "crawl4ai>=0.4.0",
-    "youtube-transcript-api>=0.6.3,<1.0",
+    "youtube-transcript-api>=1.1",
     "pgvector>=0.3.6",
     "markitdown[pdf]>=0.0.1a3",
+    "bcrypt>=4.2.0",
+    "pyjwt>=2.10.0",
+    "sqlmodel>=0.0.22",
+    "typer>=0.15.0",
+    "langgraph>=0.2.50",
+    "langchain-openai>=0.2.10",
+    "langchain-core>=0.3.20",
+    "ddgs>=6.0",
 ]
+
+[project.scripts]
+sikto = "api.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.11.7,<0.12.0"]
@@ -44,7 +55,15 @@ select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF"]
 ignore = ["E501"]
 
 [tool.ruff.lint.flake8-bugbear]
-extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path"]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.File",
+    "fastapi.Form",
+    "typer.Option",
+    "typer.Argument",
+]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -55,6 +74,10 @@ strict = true
 mypy_path = "src"
 packages = ["api"]
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["pgvector.*", "asyncpg", "crawl4ai", "youtube_transcript_api"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

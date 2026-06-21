@@ -1,8 +1,17 @@
 import httpx
+import pytest
 from httpx import ASGITransport
 
+from api.config import get_settings
 from api.jobs.worker import process_next_job
 from api.main import app
+
+# The worker runs the full production pipeline (embeddings, planner LLM, TTS,
+# render), so the end-to-end test only runs when an AI gateway is configured.
+needs_services = pytest.mark.skipif(
+    not get_settings().ai_gateway_api_key,
+    reason="integration test: requires AI gateway + render/tts services",
+)
 
 
 async def _client() -> httpx.AsyncClient:
@@ -19,6 +28,7 @@ async def test_post_sources_creates_queued_job():
         assert status.json()["status"] == "queued"
 
 
+@needs_services
 async def test_job_reaches_done_after_worker_runs():
     async with await _client() as client:
         resp = await client.post("/sources", json={"type": "text", "input": "hello"})

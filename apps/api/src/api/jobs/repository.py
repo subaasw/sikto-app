@@ -2,10 +2,12 @@ import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
 from api.enums import JobStatus
 from api.models import Job, Lesson, Notebook, ProductionRun, Source
 from api.planning.schema import ProductionPlan
+from api.scenes.schema import ElementType, SceneDocument
 
 
 async def create_source_and_job(
@@ -13,8 +15,18 @@ async def create_source_and_job(
     source_type: str,
     raw_input: str,
     notebook_id: uuid.UUID | None = None,
+    template: str = "explainer",
+    mode: str = "auto",
+    voice: str = "male",
 ) -> Job:
-    source = Source(type=source_type, raw_input=raw_input, notebook_id=notebook_id)
+    source = Source(
+        type=source_type,
+        raw_input=raw_input,
+        notebook_id=notebook_id,
+        template=template,
+        mode=mode,
+        voice=voice,
+    )
     session.add(source)
     await session.flush()
     job = Job(source_id=source.id, status=JobStatus.queued)
@@ -41,7 +53,9 @@ async def get_notebook(session: AsyncSession, notebook_id: uuid.UUID) -> Noteboo
 
 
 async def list_notebook_source_ids(session: AsyncSession, notebook_id: uuid.UUID) -> list[str]:
-    result = await session.execute(select(Source.id).where(Source.notebook_id == notebook_id))
+    result = await session.execute(
+        select(col(Source.id)).where(col(Source.notebook_id) == notebook_id)
+    )
     return [str(row[0]) for row in result]
 
 
@@ -99,6 +113,39 @@ async def create_lesson(
     return lesson
 
 
+def _key_points_from_document(document: SceneDocument) -> list[str]:
+    """Use each scene's heading as a key point (falls back to the title)."""
+    points: list[str] = []
+    for scene in document.scenes:
+        for element in scene.elements:
+            if element.type == ElementType.heading and element.text:
+                points.append(element.text)
+                break
+    return points[:5] if points else [document.title]
+
+
+async def create_lesson_from_scene_document(
+    session: AsyncSession,
+    job_id: uuid.UUID,
+    source_id: uuid.UUID,
+    document: SceneDocument,
+) -> Lesson:
+    lesson = Lesson(
+        job_id=job_id,
+        source_id=source_id,
+        title=document.title,
+        summary=document.summary,
+        key_points=_key_points_from_document(document),
+        quiz=[],
+        script=document.model_dump(mode="json"),
+        video_url=None,
+    )
+    session.add(lesson)
+    await session.commit()
+    await session.refresh(lesson)
+    return lesson
+
+
 async def set_lesson_video(session: AsyncSession, lesson_id: uuid.UUID, video_url: str) -> None:
     lesson = await session.get(Lesson, lesson_id)
     if lesson is None:
@@ -108,8 +155,16 @@ async def set_lesson_video(session: AsyncSession, lesson_id: uuid.UUID, video_ur
 
 
 async def get_lesson_by_job(session: AsyncSession, job_id: uuid.UUID) -> Lesson | None:
-    result = await session.execute(select(Lesson).where(Lesson.job_id == job_id).limit(1))
+    result = await session.execute(select(Lesson).where(col(Lesson.job_id) == job_id).limit(1))
     return result.scalar_one_or_none()
+
+
+async def list_lessons(session: AsyncSession, limit: int = 50) -> list[Lesson]:
+    """Most-recent lessons first, for the library/history view."""
+    result = await session.execute(
+        select(Lesson).order_by(col(Lesson.created_at).desc()).limit(limit)
+    )
+    return list(result.scalars().all())
 
 
 async def save_production_run(

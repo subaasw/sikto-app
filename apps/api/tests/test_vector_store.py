@@ -1,5 +1,5 @@
 """DB-dependent: requires Postgres + pgvector with migration 0002 applied
-(docker compose up -d db && uv run alembic upgrade head)."""
+(a local Postgres running, then `uv run alembic upgrade head`)."""
 
 from api.knowledge.vector_store import PgVectorStore
 from api.models import EMBEDDING_DIM

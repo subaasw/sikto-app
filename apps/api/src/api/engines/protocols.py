@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 
@@ -11,9 +11,17 @@ class Document:
 
 
 @dataclass
+class WordTiming:
+    text: str
+    start_ms: int
+    end_ms: int
+
+
+@dataclass
 class TTSResult:
     audio: bytes
     duration_ms: int
+    words: list[WordTiming] = field(default_factory=list)
 
 
 class SourceLoader(Protocol):
@@ -32,7 +40,14 @@ class VectorStore(Protocol):
 
 
 class TTSClient(Protocol):
-    async def synthesize(self, text: str) -> TTSResult: ...
+    async def synthesize(
+        self,
+        text: str,
+        *,
+        rate: str | None = None,
+        pitch: str | None = None,
+        voice: str | None = None,
+    ) -> TTSResult: ...
 
 
 class RenderClient(Protocol):

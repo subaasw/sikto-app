@@ -2,6 +2,7 @@ from collections.abc import Callable
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
 from api.db import SessionLocal
 from api.models import SourceChunk
@@ -29,8 +30,9 @@ class PgVectorStore:
         self, embedding: list[float], k: int, source_ids: list[str] | None = None
     ) -> list[tuple[str, str, float]]:
         async with self._session_factory() as session:
-            distance = SourceChunk.embedding.cosine_distance(embedding)
-            stmt = select(SourceChunk.id, SourceChunk.content, distance.label("distance"))
+            # cosine_distance is a pgvector comparator method, absent from SQLAlchemy's typed API.
+            distance = col(SourceChunk.embedding).cosine_distance(embedding)  # type: ignore[attr-defined]
+            stmt = select(col(SourceChunk.id), col(SourceChunk.content), distance.label("distance"))
             if source_ids:
                 # chunk ids are "<source_id>:<index>"; scope to the given sources.
                 stmt = stmt.where(func.split_part(SourceChunk.id, ":", 1).in_(source_ids))

@@ -6,6 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import get_session
 from api.jobs.repository import create_source_and_job, get_job
+from api.lesson_mode import DEFAULT_MODE, MODES
+from api.scenes.templates import DEFAULT_TEMPLATE, TEMPLATES
+from api.voices import DEFAULT_VOICE, VOICES
 
 router = APIRouter(tags=["sources"])
 
@@ -13,6 +16,9 @@ router = APIRouter(tags=["sources"])
 class CreateSourceRequest(BaseModel):
     type: str
     input: str
+    template: str = DEFAULT_TEMPLATE
+    mode: str = DEFAULT_MODE
+    voice: str = DEFAULT_VOICE
 
 
 class CreateSourceResponse(BaseModel):
@@ -30,7 +36,12 @@ class JobResponse(BaseModel):
 async def create_source(
     body: CreateSourceRequest, session: AsyncSession = Depends(get_session)
 ) -> CreateSourceResponse:
-    job = await create_source_and_job(session, source_type=body.type, raw_input=body.input)
+    template = body.template if body.template in TEMPLATES else DEFAULT_TEMPLATE
+    mode = body.mode if body.mode in MODES else DEFAULT_MODE
+    voice = body.voice if body.voice in VOICES else DEFAULT_VOICE
+    job = await create_source_and_job(
+        session, source_type=body.type, raw_input=body.input, template=template, mode=mode, voice=voice
+    )
     return CreateSourceResponse(job_id=job.id)
 
 

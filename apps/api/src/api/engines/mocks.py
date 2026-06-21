@@ -45,7 +45,9 @@ class MockVectorStore:
 
 
 class MockTTSClient:
-    async def synthesize(self, text: str) -> TTSResult:
+    async def synthesize(
+        self, text: str, *, rate: str | None = None, pitch: str | None = None
+    ) -> TTSResult:
         return TTSResult(audio=b"\x00" * 16, duration_ms=max(1, len(text)) * 50)
 
 

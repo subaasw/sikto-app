@@ -11,7 +11,7 @@ class Difficulty(StrEnum):
 
 
 class VisualType(StrEnum):
-    title = "title"
+    title = "title"  # type: ignore[assignment]  # value shadows str.title; fine for StrEnum
     bullet = "bullet"
     talking_point = "talking-point"
     equation = "equation"

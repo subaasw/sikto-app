@@ -2,11 +2,12 @@ import asyncio
 
 from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlmodel import SQLModel
 
+import api.models  # noqa: F401  -- registers all tables on SQLModel.metadata
 from api.config import get_settings
-from api.models import Base
 
-target_metadata = Base.metadata
+target_metadata = SQLModel.metadata
 
 
 def run_migrations(connection):
