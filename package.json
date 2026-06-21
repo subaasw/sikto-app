@@ -8,9 +8,10 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "concurrently -k -n web,api,render,tts -c cyan,blue,magenta,green \"cd apps/web && pnpm dev\" \"cd apps/api && uv run uvicorn api.main:app --reload --port 8000\" \"cd apps/render && pnpm dev\" \"cd apps/tts && uv run uvicorn tts.main:app --app-dir src --port 8002\"",
     "dev:web": "pnpm --filter web dev",
-    "dev:api": "cd apps/api && uv run uvicorn api.main:app --reload --port 8000",
+    "dev:api": "concurrently -k -n api,render,tts -c blue,magenta,green \"cd apps/api && uv run uvicorn api.main:app --reload --port 8000\" \"cd apps/render && pnpm dev\" \"cd apps/tts && uv run uvicorn tts.main:app --app-dir src --port 8002\"",
+    "dev:api-only": "cd apps/api && uv run uvicorn api.main:app --reload --port 8000",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
@@ -20,9 +21,16 @@
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
+    "concurrently": "^10.0.3",
     "prettier": "^3.3.3",
     "prettier-plugin-tailwindcss": "^0.6.8",
     "turbo": "^2.3.3",
     "typescript": "^5.6.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "@types/react": "^19.2.0",
+      "@types/react-dom": "^19.2.0"
+    }
   }
 }
