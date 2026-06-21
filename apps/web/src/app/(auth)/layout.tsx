@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { PixelLogo } from '@/components/pixel-logo';
-import { useAuth } from '@/components/auth/auth-provider';
+import { useAuth } from '@/components/auth-old/auth-provider';
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   const { status } = useAuth();
@@ -18,7 +18,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-6 py-12">
       <Link href="/" className="mb-8 flex items-center gap-2.5">
-        <span className="flex size-9 items-center justify-center border-2 border-border bg-primary text-foreground shadow-pixel-sm">
+        <span className="flex size-9 items-center justify-center border-2 border-border bg-primary text-primary-foreground shadow-pixel-sm">
           <PixelLogo size={22} />
         </span>
         <span className="font-pixel text-xl tracking-tight">Sikto</span>

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { GeistPixelSquare } from 'geist/font/pixel';
 import './globals.css';
-import { AppShell } from '@/components/app-shell';
+import { AuthProvider } from '@/components/auth-old/auth-provider';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -29,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${fontVars} h-full antialiased`}>
       <body className="min-h-full bg-background font-sans text-foreground">
-        <AppShell>{children}</AppShell>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

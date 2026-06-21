@@ -1,73 +1,123 @@
 'use client';
 
-import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport } from 'ai';
-import { useState } from 'react';
+import { Loader2, Send, Square } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { streamChat, type ChatMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
-export function Chat() {
-  const { messages, sendMessage, status, stop } = useChat({
-    transport: new DefaultChatTransport({ api: '/api/chat' }),
-  });
-  const [input, setInput] = useState('');
+type Message = ChatMessage & { id: string };
 
-  const isBusy = status === 'submitted' || status === 'streaming';
+let counter = 0;
+const nextId = () => `m${++counter}`;
+
+export function Chat() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Keep the transcript pinned to the latest message.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [messages]);
+
+  function stop() {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setBusy(false);
+  }
+
+  async function send() {
+    const text = input.trim();
+    if (!text || busy) return;
+
+    const userMsg: Message = { id: nextId(), role: 'user', content: text };
+    const assistantId = nextId();
+    const history = [...messages, userMsg];
+    setMessages([...history, { id: assistantId, role: 'assistant', content: '' }]);
+    setInput('');
+    setBusy(true);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      const payload = history.map(({ role, content }) => ({ role, content }));
+      for await (const chunk of streamChat(payload, controller.signal)) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + chunk } : m)),
+        );
+      }
+    } catch (err) {
+      if (!controller.signal.aborted) {
+        const detail = err instanceof Error ? err.message : 'Something went wrong';
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId ? { ...m, content: m.content || `⚠ ${detail}` } : m,
+          ),
+        );
+      }
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+      setBusy(false);
+    }
+  }
 
   return (
-    <div className="mx-auto flex h-[70vh] w-full max-w-2xl flex-col gap-4 rounded-2xl border border-black/10 bg-white/40 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-black/30">
-      <div className="flex-1 space-y-3 overflow-y-auto pr-2">
-        {messages.length === 0 && (
-          <p className="text-sm text-black/60 dark:text-white/60">Say hello to Sikto.</p>
-        )}
+    <div className="flex h-[70vh] w-full flex-col border-2 border-border bg-surface shadow-pixel">
+      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-5">
+        {messages.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Say hello to Sikto.</p>
+        ) : null}
         {messages.map((m) => (
           <div
             key={m.id}
             className={cn(
-              'max-w-[85%] rounded-2xl px-4 py-2 text-sm',
+              'max-w-[85%] border-2 border-border px-3 py-2 text-sm',
               m.role === 'user'
-                ? 'ml-auto bg-black text-white dark:bg-white dark:text-black'
-                : 'mr-auto bg-black/5 dark:bg-white/10',
+                ? 'ml-auto bg-primary text-primary-foreground'
+                : 'mr-auto bg-muted text-foreground',
             )}
           >
-            {m.parts.map((part, i) =>
-              part.type === 'text' ? <span key={i}>{part.text}</span> : null,
+            {m.content ? (
+              <span className="whitespace-pre-wrap">{m.content}</span>
+            ) : (
+              <Loader2 className="size-4 animate-spin text-muted-foreground" />
             )}
           </div>
         ))}
       </div>
 
       <form
-        className="flex items-center gap-2"
+        className="flex items-center gap-2 border-t-2 border-border p-3"
         onSubmit={(e) => {
           e.preventDefault();
-          const text = input.trim();
-          if (!text || isBusy) return;
-          sendMessage({ text });
-          setInput('');
+          void send();
         }}
       >
         <input
-          className="flex-1 rounded-full border border-black/15 bg-white px-4 py-2 text-sm outline-none focus:border-black dark:border-white/15 dark:bg-black dark:focus:border-white"
+          className="flex-1 border-2 border-border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask Sikto anything…"
-          disabled={isBusy}
         />
-        {isBusy ? (
+        {busy ? (
           <button
             type="button"
             onClick={stop}
-            className="rounded-full bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+            aria-label="Stop"
+            className="flex size-10 items-center justify-center border-2 border-border bg-red-500 text-white transition-colors hover:bg-red-600"
           >
-            Stop
+            <Square className="size-4" />
           </button>
         ) : (
           <button
             type="submit"
-            className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white hover:bg-black/80 disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-white/80"
+            aria-label="Send"
             disabled={!input.trim()}
+            className="flex size-10 items-center justify-center border-2 border-border bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
-            Send
+            <Send className="size-4" />
           </button>
         )}
       </form>

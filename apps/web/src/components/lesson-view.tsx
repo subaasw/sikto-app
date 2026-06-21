@@ -1,7 +1,8 @@
 'use client';
 
-import { Check, Play, Sparkles } from 'lucide-react';
-import { useState } from 'react';
+import { Check, FileText, Play, ScrollText, Sparkles } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { VideoPlayer } from '@/components/player/video-player';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,10 +19,12 @@ export interface LessonData {
   summary: string;
   keyPoints: string[];
   videoUrl: string | null;
+  transcriptUrl?: string | null;
+  scriptUrl?: string | null;
   quiz: QuizItem[];
 }
 
-export function LessonView({ lesson }: { lesson: LessonData }) {
+export function LessonView({ lesson, player }: { lesson: LessonData; player?: ReactNode }) {
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
@@ -32,7 +35,32 @@ export function LessonView({ lesson }: { lesson: LessonData }) {
         <p className="text-muted-foreground">{lesson.summary}</p>
       </header>
 
-      <VideoPlayer url={lesson.videoUrl} />
+      {player ?? (lesson.videoUrl ? <VideoPlayer src={lesson.videoUrl} /> : <VideoPlaceholder />)}
+
+      {player && lesson.videoUrl ? (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-lg font-semibold tracking-tight">Rendered video</h2>
+          <p className="text-sm text-muted-foreground">
+            The narrated MP4 with baked-in voice-over.
+          </p>
+          <VideoPlayer src={lesson.videoUrl} />
+        </section>
+      ) : null}
+
+      {lesson.transcriptUrl || lesson.scriptUrl ? (
+        <div className="flex flex-wrap gap-2">
+          {lesson.transcriptUrl ? (
+            <DownloadLink href={lesson.transcriptUrl} icon={<FileText className="size-4" />}>
+              Source transcript (.md)
+            </DownloadLink>
+          ) : null}
+          {lesson.scriptUrl ? (
+            <DownloadLink href={lesson.scriptUrl} icon={<ScrollText className="size-4" />}>
+              Narration script (.md)
+            </DownloadLink>
+          ) : null}
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -62,14 +90,30 @@ export function LessonView({ lesson }: { lesson: LessonData }) {
   );
 }
 
-function VideoPlayer({ url }: { url: string | null }) {
-  if (url) {
-    return (
-      <video controls className="w-full rounded-xl border border-border bg-black shadow-sm">
-        <source src={url} type="video/mp4" />
-      </video>
-    );
-  }
+function DownloadLink({
+  href,
+  icon,
+  children,
+}: {
+  href: string;
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      download
+      className="inline-flex items-center gap-2 border-2 border-border bg-surface px-3 py-2 text-sm font-medium shadow-pixel-sm transition-transform hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-pixel"
+    >
+      {icon}
+      {children}
+    </a>
+  );
+}
+
+function VideoPlaceholder() {
   return (
     <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted text-muted-foreground">
       <Play className="size-8" />
