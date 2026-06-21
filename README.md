@@ -1,105 +1,98 @@
 # Sikto
 
-Video automation and microlearning platform. Monorepo for the Sikto project.
+Turns a source (text, URL, or YouTube link) into a narrated micro-lesson video.
+A monorepo of four services orchestrated by Turborepo + pnpm.
 
 ```
 sikto/
 ├── apps/
-│   ├── web/   Next.js 16 + Tailwind v4 + Base UI + Vercel AI SDK
-│   └── api/   FastAPI (managed by uv)
+│   ├── web/      Next.js 16 + React 19 + Tailwind v4  (UI, port 3000)
+│   ├── api/      FastAPI + async SQLAlchemy + pgvector (backend + job worker, port 8000)
+│   ├── render/   Remotion video renderer (tsx service, port 8001)
+│   └── tts/      FastAPI + edge-tts neural voiceover  (port 8002)
+├── packages/     shared TS packages (e.g. scene-kit)
 ├── pnpm-workspace.yaml
-├── turbo.json
-└── package.json
+└── turbo.json
 ```
+
+How a lesson is built: **API** ingests the source, an LLM ("brain") plans a
+`SceneDocument`, **TTS** narrates each scene, **render** turns it into an MP4.
+TTS and render are best-effort — if they're down the lesson still completes and
+the web player renders the `SceneDocument` directly.
 
 ## Prerequisites
 
-- **Node** ≥ 20
-- **pnpm** ≥ 10 — `brew install pnpm`
-- **uv** (Python package manager) — `brew install uv` or `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- **Python** ≥ 3.12 (uv will install if missing)
+- **Node** ≥ 20 and **pnpm** ≥ 10 — `brew install pnpm`
+- **uv** (Python) — `brew install uv` or `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- **Python** ≥ 3.12 (uv installs it if missing)
+- **Postgres** ≥ 14 with the `pgvector` extension — `brew install postgresql@17 pgvector`
 
-## First-time setup
+## Setup
 
 ```bash
-# install JS workspace deps
-pnpm install
+pnpm install                          # JS workspace deps
+cd apps/api && uv sync && cd -        # API Python deps (creates apps/api/.venv)
+cd apps/tts && uv sync && cd -        # TTS Python deps
 
-# install Python deps for the api (uv creates apps/api/.venv automatically)
-cd apps/api && uv sync && cd -
-
-# copy env files
+# env files (all real .env* are gitignored — only *.example is committed)
+cp apps/api/.env.example       apps/api/.env
 cp apps/web/.env.local.example apps/web/.env.local
-cp apps/api/.env.example      apps/api/.env
 ```
 
-## Development
+Then fill in `apps/api/.env`:
 
-Run everything via Turborepo:
+- `JWT_SECRET` — generate with `cd apps/api && make secret` (or `openssl rand -hex 32`)
+- `DEEPSEEK_API_KEY` (default agent provider) and `AI_GATEWAY_API_KEY` (embeddings)
+- `POSTGRES_*` or a full `DATABASE_URL`
+
+Database (the API has a shortcut: `cd apps/api && make setup` does deps + DB + migrations).
+Use the `POSTGRES_*` values from your `apps/api/.env` in place of the placeholders below:
 
 ```bash
-pnpm dev           # runs all `dev` tasks in parallel (just web today)
-pnpm dev:web       # Next.js → http://localhost:3000
-pnpm dev:api       # FastAPI  → http://localhost:8000
+cd apps/api
+createuser <db-user> --createdb 2>/dev/null || true
+psql -c "ALTER USER <db-user> WITH PASSWORD '<db-password>';"
+createdb <db-name> -O <db-user> 2>/dev/null || true
+psql -d <db-name> -c "CREATE EXTENSION IF NOT EXISTS vector;"
+uv run alembic upgrade head
 ```
 
-Or directly:
+## Secrets
+
+All API keys and DB credentials come from `.env` files — nothing is hardcoded in
+source. Keys belong **only in `apps/api/.env`** (the web app reads none). Never
+commit a `.env`; edit the `*.example` templates instead. In `production`
+(`ENVIRONMENT=production`) the API refuses to start with the default `JWT_SECRET`.
+
+## Run
 
 ```bash
-pnpm --filter web dev
-cd apps/api && uv run uvicorn api.main:app --reload --port 8000
+pnpm dev          # all four services (web + api + render + tts)
+pnpm dev:web      # web only            → http://localhost:3000
+pnpm dev:api      # api + render + tts   → http://localhost:8000
+pnpm dev:api-only # api only (no render/tts; lessons skip video/voiceover)
 ```
+
+| Service | URL                     | Notes                                              |
+| ------- | ----------------------- | -------------------------------------------------- |
+| web     | http://localhost:3000   | proxies browser calls to the API via `/api` rewrite |
+| api     | http://localhost:8000   | runs the job worker in-process (`RUN_WORKER`)       |
+| render  | http://localhost:8001   | no auto-reload — restart after editing `server.ts`  |
+| tts     | http://localhost:8002   | edge-tts (free, no key); narrates scenes            |
+
+Postgres must be running: `brew services start postgresql@17`.
 
 ## Quality
 
 ```bash
-# JS / TS
+# JS / TS (from repo root)
 pnpm lint
 pnpm typecheck
 pnpm format          # Prettier write
-pnpm format:check    # Prettier check
 
-# Python (run from apps/api)
-uv run ruff check .
-uv run ruff format .
+# Python (from apps/api)
+uv run ruff check . && uv run ruff format .
 uv run mypy .
-uv run pytest
-```
-
-## Stack
-
-### Web (`apps/web`)
-
-- Next.js 16 (App Router)
-- React 19
-- TypeScript
-- Tailwind CSS v4
-- ESLint (eslint-config-next)
-- Prettier + `prettier-plugin-tailwindcss`
-- **Base UI** (`@base-ui-components/react`)
-- `lucide-react`, `clsx`, `tailwind-merge`
-- **Vercel AI SDK** (`ai`, `@ai-sdk/react`) — provider-agnostic; no provider SDK is installed
-
-The sample agent lives at `apps/web/src/lib/agent.ts`, is served by the route handler at
-`apps/web/src/app/api/chat/route.ts`, and is consumed by the `Chat` component on `/`. The model is
-not hard-coded to a provider — it is read from the `AGENT_MODEL` env var and routed through the
-[Vercel AI Gateway](https://vercel.com/docs/ai-gateway). Set `AGENT_MODEL` (e.g.
-`anthropic/claude-sonnet-4-5`) and `AI_GATEWAY_API_KEY` in `apps/web/.env.local` to run it; swap
-providers by changing the env var alone.
-
-### API (`apps/api`)
-
-- FastAPI (`fastapi[standard]`)
-- Uvicorn
-- pydantic-settings
-- Dev: `ruff`, `mypy`, `pytest`, `pytest-asyncio`, `httpx`, `pre-commit`
-
-## Adding new workspaces
-
-```bash
-# new JS app/package
-mkdir apps/new-app && cd apps/new-app && pnpm init
-
-# new Python service via uv
-cd apps && uv init --name <name> --package <name>
+make test            # full suite against a separate sikto_test database
+uv run pytest tests/test_auth_manager.py   # unit tests, no database
 ```
