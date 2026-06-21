@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { PixelLogo } from '@/components/pixel-logo';
-import { useAuth } from '@/components/auth-old/auth-provider';
+import { useAuth } from '@/components/auth/auth-provider';
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   const { status } = useAuth();

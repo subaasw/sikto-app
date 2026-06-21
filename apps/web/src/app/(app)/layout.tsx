@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { AppShell } from '@/components/app-shell';
-import { RequireAuth } from '@/components/auth-old/require-auth';
+import { RequireAuth } from '@/components/auth/require-auth';
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (

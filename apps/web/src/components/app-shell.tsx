@@ -15,7 +15,7 @@ import {
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { PixelLogo } from '@/components/pixel-logo';
-import { useAuth } from '@/components/auth-old/auth-provider';
+import { useAuth } from '@/components/auth/auth-provider';
 
 const nav: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/', label: 'Create', icon: Sparkles },
