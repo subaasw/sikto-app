@@ -9,13 +9,55 @@ import json
 import logging
 import logging.handlers
 import os
+import sys
 from datetime import UTC, datetime
 
 from api.config import Settings, get_settings
 
 _configured = False
 
-_TEXT_FORMAT = "%(asctime)s %(levelname)-8s %(name)s: %(message)s"
+_TEXT_FORMAT = "%(asctime)s %(levelname)s %(name)s · %(message)s"
+_TIME_FORMAT = "%H:%M:%S"
+# Third-party loggers that spam INFO (one line per HTTP request, etc.).
+_NOISY = ("httpx", "httpcore", "openai", "urllib3", "asyncio")
+
+_LEVEL_COLORS = {"DEBUG": "37", "INFO": "36", "WARNING": "33", "ERROR": "31", "CRITICAL": "41"}
+
+
+def short_error(exc: BaseException) -> str:
+    """One-line, human description of an exception for logs — no traceback. Maps
+    the common provider failures to a clear phrase (rate limit, auth, timeout…)."""
+    name = type(exc).__name__
+    status = getattr(exc, "status_code", None) or getattr(
+        getattr(exc, "response", None), "status_code", None
+    )
+    if status == 429 or "RateLimit" in name:
+        return "rate limited (429)"
+    if status == 401 or "Authentication" in name:
+        return "auth failed (401) — check the API key"
+    if status == 403:
+        return "forbidden (403)"
+    if "Timeout" in name:
+        return "timed out"
+    if "Connection" in name:
+        return "connection error"
+    first = (str(exc).strip().splitlines() or [""])[0]
+    return (f"{name}: {first}" if first else name)[:140]
+
+
+class CleanFormatter(logging.Formatter):
+    """Short console lines: `HH:MM:SS LEVEL name · message`, with the `api.`
+    prefix stripped and the level coloured when writing to a terminal."""
+
+    def __init__(self, *, color: bool) -> None:
+        super().__init__(_TEXT_FORMAT, datefmt=_TIME_FORMAT)
+        self._color = color
+
+    def format(self, record: logging.LogRecord) -> str:
+        record.name = record.name.removeprefix("api.")
+        if self._color and (code := _LEVEL_COLORS.get(record.levelname)):
+            record.levelname = f"\033[{code}m{record.levelname}\033[0m"
+        return super().format(record)
 
 
 class JsonFormatter(logging.Formatter):
@@ -31,10 +73,10 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False)
 
 
-def _formatter(settings: Settings) -> logging.Formatter:
+def _formatter(settings: Settings, *, color: bool) -> logging.Formatter:
     if settings.log_format == "json":
         return JsonFormatter()
-    return logging.Formatter(_TEXT_FORMAT)
+    return CleanFormatter(color=color)
 
 
 def configure_logging(settings: Settings | None = None, *, force: bool = False) -> None:
@@ -43,7 +85,6 @@ def configure_logging(settings: Settings | None = None, *, force: bool = False) 
     if _configured and not force:
         return
     settings = settings or get_settings()
-    formatter = _formatter(settings)
     level = settings.log_level.upper()
 
     root = logging.getLogger()
@@ -52,7 +93,7 @@ def configure_logging(settings: Settings | None = None, *, force: bool = False) 
         root.removeHandler(handler)
 
     console = logging.StreamHandler()
-    console.setFormatter(formatter)
+    console.setFormatter(_formatter(settings, color=sys.stderr.isatty()))
     root.addHandler(console)
 
     if settings.log_dir:
@@ -63,8 +104,12 @@ def configure_logging(settings: Settings | None = None, *, force: bool = False) 
             backupCount=5,
             encoding="utf-8",
         )
-        file_handler.setFormatter(formatter)
+        file_handler.setFormatter(_formatter(settings, color=False))  # no ANSI in files
         root.addHandler(file_handler)
+
+    # Quiet third-party loggers that would otherwise drown out app logs.
+    for name in _NOISY:
+        logging.getLogger(name).setLevel(logging.WARNING)
 
     # Let uvicorn/sqlalchemy propagate to the root handlers instead of their own.
     for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):

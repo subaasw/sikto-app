@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from openai import AsyncOpenAI
 
-from api.agent.providers import resolve_agent_llm
+from api.agent.providers import agent_llm_chain
 from api.config import get_settings
 
 SYSTEM_PROMPT = (
@@ -27,21 +27,33 @@ class ChatMessage:
 
 
 async def stream_chat(messages: Sequence[ChatMessage]) -> AsyncIterator[str]:
-    """Yield assistant token deltas for the given conversation."""
-    config = resolve_agent_llm(get_settings())
-    client = AsyncOpenAI(base_url=config.base_url, api_key=config.api_key)
+    """Yield assistant token deltas, trying NVIDIA first then DeepSeek on error."""
+    chain = agent_llm_chain(get_settings())
+    if not chain:
+        raise RuntimeError("no agent LLM configured: set NVIDIA_API_KEY or DEEPSEEK_API_KEY")
 
     payload = [{"role": "system", "content": SYSTEM_PROMPT}]
     payload += [{"role": m.role, "content": m.content} for m in messages if m.content.strip()]
 
-    stream = await client.chat.completions.create(
-        model=config.model,
-        messages=payload,  # type: ignore[arg-type]
-        stream=True,
-    )
-    async for chunk in stream:
-        if not chunk.choices:
-            continue
-        delta = chunk.choices[0].delta.content
-        if delta:
-            yield delta
+    last_exc: Exception | None = None
+    for config in chain:
+        client = AsyncOpenAI(base_url=config.base_url, api_key=config.api_key)
+        try:
+            if config.rate_limiter is not None:  # share NVIDIA's throttle
+                await config.rate_limiter.aacquire(blocking=True)
+            stream = await client.chat.completions.create(
+                model=config.model,
+                messages=payload,  # type: ignore[arg-type]
+                stream=True,
+                extra_body=config.extra_body,
+            )
+            async for chunk in stream:  # type: ignore[union-attr]
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    yield delta
+            return
+        except Exception as exc:  # provider down / rate-limited → try the next
+            last_exc = exc
+    raise RuntimeError("all chat providers failed") from last_exc
