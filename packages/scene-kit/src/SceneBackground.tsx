@@ -1,10 +1,11 @@
 import type { SceneTheme } from './types';
-import { getTemplate } from './templates/registry';
+import { renderBackground } from './templates/backgrounds';
 
 /**
- * The scene's background layer — delegates to the active template module so each
- * template owns its own look (see templates/<name>.tsx). Driven by `progressMs`
- * so motion is identical in the live player and the Remotion render.
+ * The scene's background layer, chosen by the theme's `background_style`. Driven
+ * by `progressMs` so motion is identical in the live player and the Remotion
+ * render. (Per-template entrance motion / element treatment live in the template
+ * modules; the background is an orthogonal knob.)
  */
 export function SceneBackground({
   theme,
@@ -13,5 +14,5 @@ export function SceneBackground({
   theme: SceneTheme;
   progressMs: number;
 }) {
-  return getTemplate(theme).Background({ theme, progressMs });
+  return renderBackground(theme, progressMs);
 }

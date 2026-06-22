@@ -1,11 +1,9 @@
 import { clamp, easeOut, linear, springEase } from '../motion';
-import { gradientBg } from './backgrounds';
 import type { TemplateModule } from './types';
 
-/** Explainer — clean, cinematic: soft gradient bg, smooth springy reveals. */
+/** Explainer — clean, cinematic: smooth springy reveals. */
 export const explainer: TemplateModule = {
   id: 'explainer',
-  Background: ({ theme, progressMs }) => gradientBg(theme, progressMs),
   entrance: ({ anim, atMs, progressMs, profile }) => {
     if (anim.type === 'draw') return { opacity: 1 };
     const lin = linear(atMs, progressMs, anim.duration_ms);

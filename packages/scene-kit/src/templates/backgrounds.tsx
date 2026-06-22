@@ -25,6 +25,24 @@ const base = (theme: SceneTheme): CSSProperties => ({
   background: theme.background,
 });
 
+/** Render the background for a theme's `background_style` (the source of truth);
+ * defaults to gradient. Per-template *motion/treatment* lives in the template
+ * modules — the background is an orthogonal knob, so it lives here. */
+export function renderBackground(theme: SceneTheme, progressMs: number): ReactElement {
+  switch (theme.background_style ?? 'gradient') {
+    case 'texture':
+      return textureBg(theme, progressMs);
+    case 'mesh':
+      return meshBg(theme, progressMs);
+    case 'grid':
+      return gridBg(theme, progressMs);
+    case 'solid':
+      return solidBg(theme);
+    default:
+      return gradientBg(theme, progressMs);
+  }
+}
+
 export function solidBg(theme: SceneTheme): ReactElement {
   return <div style={base(theme)} />;
 }

@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactElement } from 'react';
+import type { CSSProperties } from 'react';
 import type { Animation, Element, RenderProfile, SceneTheme, WordTiming } from '../types';
 
 /** Inputs an entrance needs to compute an element's per-frame style. */
@@ -19,13 +19,12 @@ export interface ElementTreatment {
 }
 
 /**
- * One template = one self-contained look + motion. Each lives in its own file
- * so its background, entrance motion, and element treatment read top-to-bottom
- * instead of being scattered across shared `if/else` blocks.
+ * One template's motion language: how elements enter and any per-element visual
+ * treatment (e.g. marketing's sticker frame). The background is chosen
+ * separately by `background_style` (see SceneBackground / backgrounds.ts).
  */
 export interface TemplateModule {
   id: string;
-  Background: (props: { theme: SceneTheme; progressMs: number }) => ReactElement;
   entrance: (ctx: EntranceCtx) => CSSProperties;
   elementTreatment?: (element: Element, theme: SceneTheme) => ElementTreatment;
 }
