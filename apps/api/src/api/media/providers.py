@@ -8,8 +8,10 @@ Everything is best-effort: a network failure returns an empty list rather than
 breaking the request.
 """
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 
 import httpx
 
@@ -30,12 +32,13 @@ class MediaResult:
     tags: list[str] = field(default_factory=list)
 
 
-async def _get_json(url: str, params: dict[str, object]) -> dict | None:
+async def _get_json(url: str, params: dict[str, str | int]) -> dict[str, Any] | None:
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT, headers={"User-Agent": _UA}) as client:
             resp = await client.get(url, params=params)
             resp.raise_for_status()
-            return resp.json()
+            data: Any = resp.json()
+            return data if isinstance(data, dict) else None
     except Exception:
         logger.warning("media provider request failed: %s", url, exc_info=True)
         return None
@@ -123,6 +126,69 @@ async def search_images(query: str, k: int) -> list[MediaResult]:
     return out
 
 
+# thesvg.org — software/brand logos (OpenAI, GitHub, Stripe…). A static manifest
+# fetched ONCE (cached) from the jsDelivr CDN mirror; SVGs served from the same CDN.
+_THESVG_MANIFEST = "https://cdn.jsdelivr.net/gh/glincker/thesvg@main/src/data/icons.json"
+_THESVG_SVG = "https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/{slug}/{variant}.svg"
+
+_brand_icons: list[dict[str, Any]] | None = None
+_brand_lock = asyncio.Lock()
+
+
+async def _brand_manifest() -> list[dict[str, Any]]:
+    global _brand_icons
+    if _brand_icons is not None:
+        return _brand_icons
+    async with _brand_lock:
+        if _brand_icons is None:
+            try:
+                async with httpx.AsyncClient(timeout=_TIMEOUT, headers={"User-Agent": _UA}) as client:
+                    resp = await client.get(_THESVG_MANIFEST)
+                    resp.raise_for_status()
+                    data = resp.json()
+            except Exception:
+                logger.warning("thesvg manifest fetch failed", exc_info=True)
+                return []  # don't cache the failure — retry on the next search
+            icons = data.get("icons") if isinstance(data, dict) else data
+            _brand_icons = icons if isinstance(icons, list) else []
+    return _brand_icons
+
+
+def _brand_variant(icon: dict[str, Any]) -> str:
+    variants = icon.get("variants") or icon.get("variant")
+    if isinstance(variants, dict) and variants:
+        return "default" if "default" in variants else next(iter(variants))
+    if isinstance(variants, list) and variants:
+        return "default" if "default" in variants else str(variants[0])
+    return "default"
+
+
+async def search_brand_icons(query: str, k: int) -> list[MediaResult]:
+    """Software/brand logos from thesvg.org, matched client-side on slug/title/alias."""
+    q = query.lower().strip()
+    if not q:
+        return []
+    out: list[MediaResult] = []
+    for icon in await _brand_manifest():
+        slug = str(icon.get("slug") or "")
+        if not slug:
+            continue
+        title = str(icon.get("title") or slug)
+        aliases = icon.get("aliases") or []
+        hay = " ".join([slug, title, *(str(a) for a in aliases)]).lower()
+        if q in hay:
+            url = _THESVG_SVG.format(slug=slug, variant=_brand_variant(icon))
+            out.append(
+                MediaResult(
+                    title=title, url=url, thumbnail=url, source="thesvg", kind="logo",
+                    license=icon.get("license"), tags=[query, slug],
+                )
+            )
+            if len(out) >= k:
+                break
+    return out
+
+
 async def search_online(query: str, kind: str, k: int = 16) -> list[MediaResult]:
     """Dispatch to the right provider for the requested kind."""
     query = query.strip()
@@ -130,4 +196,8 @@ async def search_online(query: str, kind: str, k: int = 16) -> list[MediaResult]
         return []
     if kind == "icon":
         return await search_icons(query, k)
+    if kind == "logo":
+        return await search_brand_icons(query, k)
+    if kind == "background":
+        return await search_images(f"{query} abstract background", k)
     return await search_images(query, k)

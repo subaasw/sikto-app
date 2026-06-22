@@ -8,6 +8,7 @@ const BACKGROUNDS: { style: BackgroundStyle; label: string }[] = [
   { style: 'gradient', label: 'Gradient' },
   { style: 'mesh', label: 'Mesh' },
   { style: 'grid', label: 'Grid' },
+  { style: 'texture', label: 'Texture' },
   { style: 'solid', label: 'Solid' },
 ];
 
@@ -39,9 +40,10 @@ export default function MediaPage() {
 
       <section className="mt-10 flex flex-col gap-4">
         <div className="flex flex-col gap-1">
-          <h2 className="text-lg font-semibold tracking-tight">Images &amp; icons</h2>
+          <h2 className="text-lg font-semibold tracking-tight">Library</h2>
           <p className="text-sm text-muted-foreground">
-            Add media by URL or upload files. These become available to the AI when building lessons.
+            Search the web for images, icons, and brand logos, or drag in your own files.
+            Everything here becomes available to the AI when building lessons.
           </p>
         </div>
         <MediaManager />

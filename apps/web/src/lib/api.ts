@@ -67,13 +67,12 @@ export function addAsset(body: {
   return request('/assets', { method: 'POST', body: JSON.stringify(body) });
 }
 
-export async function uploadAsset(
-  file: File,
-  fields: { title: string; kind: string; tags: string },
-): Promise<MediaAsset> {
+export async function uploadAssets(
+  files: File[],
+  fields: { kind: string; tags: string },
+): Promise<MediaAsset[]> {
   const form = new FormData();
-  form.append('file', file);
-  form.append('title', fields.title);
+  for (const file of files) form.append('files', file);
   form.append('kind', fields.kind);
   form.append('tags', fields.tags);
   const res = await fetch(`${API_BASE}/assets/upload`, {
@@ -82,7 +81,7 @@ export async function uploadAsset(
     body: form,
   });
   if (!res.ok) throw new Error(`Upload failed (${res.status})`);
-  return res.json() as Promise<MediaAsset>;
+  return res.json() as Promise<MediaAsset[]>;
 }
 
 export async function deleteAsset(id: string): Promise<void> {
