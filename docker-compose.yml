@@ -1,0 +1,47 @@
+name: sikto
+
+# Runs the backend (API + Postgres) in Docker. Run the rest with pnpm:
+#   docker compose up --build          # db :5432 + api :8000
+#   pnpm dev:web                       # web  :3000  (talks to the API at :8000)
+#   cd apps/render && pnpm dev         # render :8001  (optional)
+#   cd apps/tts && uv run uvicorn tts.main:app --app-dir src --port 8002   # optional
+#
+# Config comes from apps/api/.env (copy apps/api/.env.example first).
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    env_file: apps/api/.env # POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build: ./apps/api
+    env_file: apps/api/.env # JWT_SECRET, NVIDIA/DEEPSEEK keys, POSTGRES_* …
+    environment:
+      # Override the host-specific values from .env for the container network.
+      POSTGRES_HOST: db
+      STORAGE_DIR: /data/storage
+      # render/tts run on the host via pnpm — reach them through the gateway.
+      RENDER_URL: http://host.docker.internal:8001
+      TTS_URL: http://host.docker.internal:8002
+    ports:
+      - "8000:8000"
+    volumes:
+      - storage:/data/storage
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # Linux: reach host (pnpm) services
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  storage:

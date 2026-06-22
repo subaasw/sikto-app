@@ -66,6 +66,10 @@ commit a `.env`; edit the `*.example` templates instead. In `production`
 
 ## Run
 
+The API runs two ways: **locally with pnpm** (below) or **in Docker**
+([next section](#run-the-backend-in-docker)). Use one or the other — not both at
+once (they share port 8000).
+
 ```bash
 pnpm dev          # all four services (web + api + render + tts)
 pnpm dev:web      # web only            → http://localhost:3000
@@ -81,6 +85,22 @@ pnpm dev:api-only # api only (no render/tts; lessons skip video/voiceover)
 | tts     | http://localhost:8002   | edge-tts (free, no key); narrates scenes            |
 
 Postgres must be running: `brew services start postgresql@17`.
+
+## Run the backend in Docker
+
+Prefer not to install Postgres/Python locally? Run the **API + Postgres** in
+Docker and the rest with pnpm. Config is read from `apps/api/.env` (copy
+`apps/api/.env.example` first and fill in `JWT_SECRET` + your LLM key).
+
+```bash
+docker compose up --build     # db on :5432, api on :8000 (runs migrations on start)
+pnpm dev:web                  # web on :3000 → talks to the dockerized API
+```
+
+`render` (:8001) and `tts` (:8002) are optional — start them with pnpm if you
+want video/voiceover; the API reaches them on the host automatically. Data
+persists in the `pgdata` and `storage` volumes. (Don't also run `pnpm dev:api`
+— it would collide with the container on port 8000.)
 
 ## Quality
 
