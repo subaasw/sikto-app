@@ -68,7 +68,7 @@ export interface Scene {
   manim_entry: string;
 }
 
-export type BackgroundStyle = 'gradient' | 'mesh' | 'grid' | 'solid';
+export type BackgroundStyle = 'gradient' | 'mesh' | 'grid' | 'solid' | 'texture';
 
 /** Entrance/motion language for a template. */
 export type MotionStyle = 'smooth' | 'punchy' | 'sketch';
@@ -81,7 +81,9 @@ export interface SceneTheme {
   background: string;
   foreground: string;
   font: string;
+  template?: string; // template id — picks the render module (see templates/registry)
   background_style?: BackgroundStyle;
+  element_style?: 'plain' | 'sticker'; // 'sticker' = cut-out border + shadow (marketing)
   sketch?: boolean; // hand-drawn (Rough.js) shapes/connectors — the whiteboard look
   motion?: MotionStyle; // how elements enter (set per template)
 }

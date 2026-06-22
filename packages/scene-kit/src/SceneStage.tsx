@@ -1,9 +1,9 @@
 import type { CSSProperties } from 'react';
 import { ElementView, type ImgComponent } from './ElementView';
-import { appearance, clamp } from './motion';
+import { clamp } from './motion';
 import { SceneBackground } from './SceneBackground';
-import { SceneDecor } from './SceneDecor';
-import type { Animation, Frame, MotionStyle, RenderProfile, Scene, SceneTheme, WordTiming } from './types';
+import { getTemplate } from './templates/registry';
+import type { Animation, Element, Frame, RenderProfile, Scene, SceneTheme, WordTiming } from './types';
 
 function frameStyle(frame: Frame): CSSProperties {
   return {
@@ -57,7 +57,7 @@ export function SceneStage({
   Video?: ImgComponent; // host video component (Remotion OffthreadVideo / plain <video>)
   manimUrl?: string; // rendered Manim clip for this scene
 }) {
-  const motion: MotionStyle = theme.motion ?? 'smooth';
+  const tpl = getTemplate(theme);
   const container: CSSProperties = {
     position: 'absolute',
     inset: 0,
@@ -111,15 +111,21 @@ export function SceneStage({
     return anim.at_ms;
   }
 
-  function styleFor(id: string): CSSProperties {
+  function styleFor(element: Element): CSSProperties {
+    const id = element.id;
     const anim = animFor[id];
     const ord = orderOf[id];
     if (revealCount === undefined) {
       if (!anim) return { opacity: 1 };
-      // A "draw" element stays mounted at full opacity; its draw progress (below)
-      // is the reveal, not a fade.
-      if (anim.type === 'draw') return { opacity: 1 };
-      return appearance(anim, startMs(anim, ord ?? 0), progressMs, motion, profile);
+      return tpl.entrance({
+        element,
+        anim,
+        atMs: startMs(anim, ord ?? 0),
+        progressMs,
+        index: ord ?? 0,
+        profile,
+        words,
+      });
     }
     const shown = ord === undefined || ord < revealCount;
     return shown
@@ -141,21 +147,25 @@ export function SceneStage({
   return (
     <div style={{ ...container, background: scene.background ?? theme.background, padding: '4%' }}>
       {scene.background ? null : <SceneBackground theme={theme} progressMs={progressMs} />}
-      {scene.elements.map((element) => (
-        <div key={element.id} style={{ ...frameStyle(element.frame), ...styleFor(element.id) }}>
-          <ElementView
-            element={element}
-            theme={theme}
-            progress={progressFor(element.id)}
-            progressMs={progressMs}
-            words={words}
-            Img={Img}
-          />
-        </div>
-      ))}
-      {revealCount === undefined ? (
-        <SceneDecor theme={theme} progressMs={progressMs} sceneDurationMs={sceneDurationMs} />
-      ) : null}
+      {scene.elements.map((element) => {
+        const treatment = tpl.elementTreatment?.(element, theme) ?? {};
+        return (
+          <div
+            key={element.id}
+            style={{ ...frameStyle(element.frame), ...styleFor(element), ...treatment.wrapStyle }}
+          >
+            <ElementView
+              element={element}
+              theme={theme}
+              progress={progressFor(element.id)}
+              progressMs={progressMs}
+              words={words}
+              Img={Img}
+              imageObjectFit={treatment.imageObjectFit}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }

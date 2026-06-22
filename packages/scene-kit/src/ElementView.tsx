@@ -73,6 +73,7 @@ export function ElementView({
   progressMs = 0,
   words,
   Img,
+  imageObjectFit = 'contain',
 }: {
   element: Element;
   theme: SceneTheme;
@@ -80,6 +81,7 @@ export function ElementView({
   progressMs?: number;
   words?: WordTiming[];
   Img?: ImgComponent;
+  imageObjectFit?: 'cover' | 'contain';
 }) {
   switch (element.type) {
     case 'heading': {
@@ -131,7 +133,7 @@ export function ElementView({
     case 'image': {
       if (!element.src) return null;
       const ImgTag = Img ?? 'img';
-      return <ImgTag src={element.src} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />;
+      return <ImgTag src={element.src} alt="" style={{ width: '100%', height: '100%', objectFit: imageObjectFit }} />;
     }
     case 'card': {
       if (theme.sketch) return <SketchCard element={element} theme={theme} />;

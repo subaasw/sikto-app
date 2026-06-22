@@ -312,9 +312,8 @@ export function LessonStage({
           background: document.theme.background,
         }}
       >
-        {/* Subtle crossfade: each new scene fades in (matches the MP4's transition). */}
-        <style>{`@keyframes sk-scene-fade{from{opacity:.35}to{opacity:1}}`}</style>
-        <div key={scene.id} className="absolute inset-0 animate-[sk-scene-fade_350ms_ease]">
+        {/* Hard cut between scenes (no crossfade) — matches the MP4. */}
+        <div key={scene.id} className="absolute inset-0">
           <SceneStage
             scene={scene}
             theme={document.theme}

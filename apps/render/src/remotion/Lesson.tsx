@@ -1,11 +1,10 @@
 import { Captions, SceneStage } from '@sikto/scene-kit';
-import { linearTiming, TransitionSeries } from '@remotion/transitions';
-import { fade } from '@remotion/transitions/fade';
 import {
   AbsoluteFill,
   Audio,
   Img,
   OffthreadVideo,
+  Series,
   staticFile,
   useCurrentFrame,
   useVideoConfig,
@@ -18,9 +17,6 @@ import {
   type SceneTheme,
   type WordTiming,
 } from './schema';
-
-// Frames the crossfade between scenes lasts (subtle).
-const TRANSITION_FRAMES = 12;
 
 /** One scene, time-driven by the Remotion frame clock and rendered through the
  * shared SceneStage so the MP4 matches the live player exactly. */
@@ -66,13 +62,13 @@ export function Lesson({ document, audio, manim_clips }: LessonProps) {
 
   return (
     <AbsoluteFill style={{ background: document.theme.background }}>
-      <TransitionSeries>
-        {scenes.flatMap((scene, i) => {
+      <Series>
+        {scenes.map((scene) => {
           const durationMs = sceneDurationMs(scene, audioByScene);
           const durationInFrames = Math.max(1, Math.round((durationMs / 1000) * fps));
           const track = audioByScene[scene.id];
-          const sequence = (
-            <TransitionSeries.Sequence key={scene.id} durationInFrames={durationInFrames}>
+          return (
+            <Series.Sequence key={scene.id} durationInFrames={durationInFrames}>
               <RenderedScene
                 scene={scene}
                 theme={document.theme}
@@ -82,20 +78,10 @@ export function Lesson({ document, audio, manim_clips }: LessonProps) {
                 manimUrl={manim_clips?.[scene.id]}
               />
               {track ? <Audio src={track.url} /> : null}
-            </TransitionSeries.Sequence>
+            </Series.Sequence>
           );
-          // A subtle crossfade between consecutive scenes.
-          if (i === 0) return [sequence];
-          return [
-            <TransitionSeries.Transition
-              key={`${scene.id}-t`}
-              presentation={fade()}
-              timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-            />,
-            sequence,
-          ];
         })}
-      </TransitionSeries>
+      </Series>
     </AbsoluteFill>
   );
 }

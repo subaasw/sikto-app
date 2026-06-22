@@ -1,18 +1,26 @@
 import type { CSSProperties } from 'react';
 import type { SceneTheme, WordTiming } from './types';
 
-const MAX_WORDS = 6; // small cues that switch often, per caption UX
+const MAX_CHARS = 42; // one readable line; cues swap when this fills or a sentence ends
 
-// Split into short cues, breaking at sentence ends so a cue never crosses one.
+// Split words into single-line cues of roughly equal length, never crossing a sentence.
 function chunkWords(words: WordTiming[]): number[][] {
   const out: number[][] = [];
   let cur: number[] = [];
+  let len = 0;
   words.forEach((w, i) => {
-    cur.push(i);
-    const endsSentence = /[.!?]["')\]]?$/.test(w.text.trim());
-    if (cur.length >= MAX_WORDS || endsSentence) {
+    const wlen = w.text.trim().length + 1;
+    if (cur.length && len + wlen > MAX_CHARS) {
       out.push(cur);
       cur = [];
+      len = 0;
+    }
+    cur.push(i);
+    len += wlen;
+    if (/[.!?]["')\]]?$/.test(w.text.trim())) {
+      out.push(cur);
+      cur = [];
+      len = 0;
     }
   });
   if (cur.length) out.push(cur);
@@ -20,10 +28,9 @@ function chunkWords(words: WordTiming[]): number[][] {
 }
 
 /**
- * Bottom caption synced to narration. Small, fixed-size cues that switch every few
- * words; words within a cue reveal as they're spoken (no color highlight, no
- * resize) so it reads consistently in both the live player and the Remotion render.
- * Driven by `progressMs`; renders nothing without word timings.
+ * Bottom caption synced to narration. Shows one short line at a time and swaps to
+ * the next line as narration advances — no word-by-word reveal, never wraps past a
+ * single line. Driven by `progressMs`; renders nothing without word timings.
  */
 export function Captions({
   words,
@@ -45,6 +52,7 @@ export function Captions({
 
   const chunks = chunkWords(words);
   const chunk = chunks.find((c) => c.includes(spoken)) ?? chunks[0] ?? [];
+  const line = chunk.map((wi) => words[wi].text).join(' ');
 
   const container: CSSProperties = {
     position: 'absolute',
@@ -56,9 +64,10 @@ export function Captions({
     pointerEvents: 'none',
     padding: '0 6% 5%',
   };
-  // White text on a dark scrim reads on any theme; small + fixed so it never distracts.
+  // White text on a dark scrim reads on any theme; small, single-line, fixed.
   const scrim: CSSProperties = {
-    maxWidth: '70%',
+    maxWidth: '90%',
+    whiteSpace: 'nowrap',
     textAlign: 'center',
     fontSize: '2.1cqw',
     lineHeight: 1.3,
@@ -72,14 +81,7 @@ export function Captions({
 
   return (
     <div style={container}>
-      <div style={scrim}>
-        {chunk.map((wi) => (
-          // Unspoken words keep their place (opacity 0) so the cue never resizes.
-          <span key={wi} style={{ opacity: wi <= spoken ? 1 : 0 }}>
-            {words[wi].text}{' '}
-          </span>
-        ))}
-      </div>
+      <div style={scrim}>{line}</div>
     </div>
   );
 }
