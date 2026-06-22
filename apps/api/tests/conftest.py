@@ -6,12 +6,17 @@ import os
 # TEST_POSTGRES_DB if you want a different name.
 os.environ["POSTGRES_DB"] = os.getenv("TEST_POSTGRES_DB", "sikto_test")
 os.environ.pop("DATABASE_URL", None)  # force recomposition from POSTGRES_* parts
+# Production config bakes in no credentials, so the suite supplies its own
+# (a real env / CI can still override any of these).
+os.environ.setdefault("POSTGRES_USER", os.getenv("TEST_POSTGRES_USER", "sikto"))
+os.environ.setdefault("POSTGRES_PASSWORD", os.getenv("TEST_POSTGRES_PASSWORD", "sikto"))
+os.environ.setdefault("JWT_SECRET", "test-secret-not-for-production")
 
-import pytest  # noqa: E402
-from sqlalchemy import text  # noqa: E402
-from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
+import pytest
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
-from api.db import engine  # noqa: E402
+from api.db import engine
 
 _TABLES = "users, notebooks, sources, jobs, source_chunks, lessons, production_runs"
 
@@ -28,8 +33,8 @@ async def _isolate_db():
     try:
         async with engine.begin() as conn:
             await conn.execute(text(f"TRUNCATE {_TABLES} RESTART IDENTITY CASCADE"))
-    except SQLAlchemyError:
-        pass
+    except (SQLAlchemyError, OSError):
+        pass  # no database available → DB-free unit tests still run
     yield
     await engine.dispose()
 
