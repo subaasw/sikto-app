@@ -74,6 +74,37 @@ async def test_unresolved_slide_left_untouched(monkeypatch):
     assert out.scenes[1] is scene
 
 
+async def test_marketing_slide_becomes_image_poster(monkeypatch):
+    captured = {}
+
+    async def fake_resolve(session, query, *, color=None, registry=None, prefer_photo=False):
+        captured["query"] = query
+        captured["prefer_photo"] = prefer_photo
+        return ResolvedAsset(url="https://img/p.jpg", kind="photo", source="openverse")
+
+    monkeypatch.setattr(art_director, "resolve_asset", fake_resolve)
+    scene = slide_scene(0, SlideDraft(heading="Ship faster", bullets=["a", "b"], narration="n", visual="rocket"))
+    out = await art_director.art_direct(None, _doc(scene), get_template("marketing"))
+    types = [e.type for e in out.scenes[0].elements]
+    assert ElementType.image in types  # dominant visual
+    assert ElementType.bullets not in types  # minimal text — no bullet lists
+    assert ElementType.character not in types  # marketing skips the presenter
+    assert sum(t == ElementType.heading for t in types) == 1  # one headline
+    # queries the concrete visual (not the metaphorical headline) as a real photo
+    assert captured == {"query": "rocket", "prefer_photo": True}
+
+
+async def test_marketing_text_poster_when_no_asset(monkeypatch):
+    async def fake_resolve(session, query, *, color=None, registry=None):
+        return None
+
+    monkeypatch.setattr(art_director, "resolve_asset", fake_resolve)
+    scene = slide_scene(0, SlideDraft(heading="Big idea", bullets=["a", "b"], narration="n"))
+    out = await art_director.art_direct(None, _doc(scene), get_template("marketing"))
+    types = [e.type for e in out.scenes[0].elements]
+    assert types == [ElementType.heading]  # one bold headline, no bullets, no image
+
+
 async def test_diagram_scene_is_skipped(monkeypatch):
     async def fake_resolve(session, query, *, color=None, registry=None):
         raise AssertionError("should not resolve for a diagram scene")

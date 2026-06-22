@@ -185,6 +185,70 @@ def hero_layout(
     )
 
 
+def poster_layout(
+    sid: str,
+    heading: str,
+    image_src: str,
+    *,
+    narration: str,
+    caption: str | None = None,
+    delivery: str = "neutral",
+    emphasis: list[str] | None = None,
+) -> Scene:
+    """Marketing archetype: a dominant image fills the frame with a single punchy
+    headline below it — minimal text, visual-first. No bullets."""
+    image = Element(
+        id=f"{sid}-img",
+        type=ElementType.image,
+        src=image_src,
+        frame=Frame(x=0.16, y=0.08, w=0.68, h=0.56),
+    )
+    head = Element(
+        id=f"{sid}-h",
+        type=ElementType.heading,
+        text=heading,
+        emphasis=emphasis or None,
+        frame=Frame(x=0.08, y=0.66, w=0.84, h=0.14),
+    )
+    return Scene(
+        id=sid,
+        kind=SceneKind.slide,
+        narration=Narration(text=narration, caption=caption, delivery=delivery),
+        elements=[image, head],
+        animations=[
+            Animation(target_id=image.id, type=AnimationType.fade_in, at_ms=0),
+            Animation(target_id=head.id, type=AnimationType.reveal, at_ms=260),
+        ],
+    )
+
+
+def poster_text_layout(
+    sid: str,
+    heading: str,
+    *,
+    narration: str,
+    caption: str | None = None,
+    delivery: str = "neutral",
+    emphasis: list[str] | None = None,
+) -> Scene:
+    """Marketing fallback when no image resolves: one big bold headline, centred.
+    The animated texture + motion carry the frame; the narration carries detail."""
+    head = Element(
+        id=f"{sid}-h",
+        type=ElementType.heading,
+        text=heading,
+        emphasis=emphasis or None,
+        frame=Frame(x=0.1, y=0.34, w=0.8, h=0.32),
+    )
+    return Scene(
+        id=sid,
+        kind=SceneKind.slide,
+        narration=Narration(text=narration, caption=caption, delivery=delivery),
+        elements=[head],
+        animations=[Animation(target_id=head.id, type=AnimationType.fade_in, at_ms=0)],
+    )
+
+
 def icon_grid_layout(
     sid: str,
     heading: str,

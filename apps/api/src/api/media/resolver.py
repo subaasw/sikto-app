@@ -7,11 +7,12 @@ a scene without a confident asset simply stays text-only.
 """
 
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.media.providers import search_icons, search_illustrations
+from api.media.providers import MediaResult, search_icons, search_illustrations, search_images
 from api.media.repository import search_media_assets
 
 logger = logging.getLogger("api.media.resolver")
@@ -49,19 +50,21 @@ async def resolve_asset(
     *,
     color: str | None = None,
     registry: dict[str, "ResolvedAsset"] | None = None,
+    prefer_photo: bool = False,
 ) -> ResolvedAsset | None:
-    """Resolve a query to an image. Prefers professional full-color illustrations,
-    falls back to a recolored mono icon. A `registry` (passed across a lesson)
-    makes the same concept always resolve to the same asset → consistent, reusable
-    art, no odd mixing within a video."""
+    """Resolve a query to an image. By default prefers full-color illustrations,
+    falling back to a recolored mono icon. With ``prefer_photo`` (marketing) it
+    resolves a real photo (Openverse) first — a dominant photo reads far better
+    than an icon. A `registry` (passed across a lesson) makes the same concept
+    always resolve to the same asset → consistent art, no odd mixing."""
     keywords = _keywords(query)
     if not keywords:
         return None
-    key = " ".join(keywords)
+    key = ("photo:" if prefer_photo else "") + " ".join(keywords)
     if registry is not None and key in registry:
         return registry[key]
 
-    result = await _lookup(session, keywords, color)
+    result = await _lookup(session, keywords, color, prefer_photo)
     if registry is not None and result is not None:
         registry[key] = result
     return result
@@ -84,7 +87,11 @@ def _relevant(title: str, keywords: list[str]) -> bool:
     return False
 
 
-async def _first_relevant(search, term: str, keywords: list[str]):
+async def _first_relevant(
+    search: Callable[[str, int], Awaitable[list[MediaResult]]],
+    term: str,
+    keywords: list[str],
+) -> MediaResult | None:
     try:
         results = await search(term, 6)
     except Exception:
@@ -94,7 +101,10 @@ async def _first_relevant(search, term: str, keywords: list[str]):
 
 
 async def _lookup(
-    session: AsyncSession | None, keywords: list[str], color: str | None
+    session: AsyncSession | None,
+    keywords: list[str],
+    color: str | None,
+    prefer_photo: bool = False,
 ) -> ResolvedAsset | None:
     # 1) User uploads / imported library assets win.
     if session is not None:
@@ -109,16 +119,31 @@ async def _lookup(
     by_specificity = sorted(keywords, key=len, reverse=True)
     terms = list(dict.fromkeys([" ".join(keywords[:2]), *by_specificity]))
 
-    # 2) Professional full-color illustration (validated relevance; not recolored).
+    # 2) Marketing: a real photo of the concept (Openverse, keyless). Trust the
+    # search ranking — photo titles are free-text, so the icon-name relevance
+    # filter doesn't apply.
+    if prefer_photo:
+        for term in terms:
+            try:
+                results = await search_images(term, 6)
+            except Exception:
+                logger.warning("photo search failed for %r", term, exc_info=True)
+                results = []
+            if results:
+                return ResolvedAsset(url=results[0].url, kind="photo", source="openverse")
+
+    # 3) Professional full-color illustration (validated relevance; not recolored).
     for term in terms:
         hit = await _first_relevant(search_illustrations, term, keywords)
         if hit is not None:
             return ResolvedAsset(url=hit.url, kind="illustration", source="iconify-color")
 
-    # 3) Fallback: a mono Iconify icon, recolored to the palette.
-    for term in terms:
-        hit = await _first_relevant(search_icons, term, keywords)
-        if hit is not None:
-            return ResolvedAsset(url=_recolor_icon(hit.url, color), kind="icon", source="iconify")
+    # 4) Fallback: a mono Iconify icon, recolored. Skipped for marketing — a tiny
+    # mono icon shown full-bleed is exactly the "irrelevant" look we're avoiding.
+    if not prefer_photo:
+        for term in terms:
+            hit = await _first_relevant(search_icons, term, keywords)
+            if hit is not None:
+                return ResolvedAsset(url=_recolor_icon(hit.url, color), kind="icon", source="iconify")
 
     return None

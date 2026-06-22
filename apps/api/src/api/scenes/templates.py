@@ -41,12 +41,13 @@ TEMPLATES: dict[str, Template] = {
     "explainer": Template(
         id="explainer",
         name="Explainer",
-        description="Clean, friendly lessons on a warm dark palette with soft gradients.",
+        description="Clean, modern lessons: emerald accent on a deep neutral with soft gradients.",
         theme=SceneTheme(
-            primary="#84cc16",
-            background="#0c0e08",
-            foreground="#edf2e2",
+            primary="#34d399",
+            background="#0b0f0e",
+            foreground="#e9efe9",
             font="Geist",
+            template="explainer",
             background_style="gradient",
             motion="smooth",
         ),
@@ -66,24 +67,28 @@ TEMPLATES: dict[str, Template] = {
     "marketing": Template(
         id="marketing",
         name="Marketing",
-        description="Bold and energetic — punchy amber on deep indigo for high-impact videos.",
+        description="Bold and high-impact — confident orange on near-black for launch-style videos.",
         theme=SceneTheme(
-            primary="#f59e0b",
-            background="#140a24",
-            foreground="#faf5ff",
+            primary="#f97316",
+            background="#0c0a09",
+            foreground="#fff7ed",
             font="Geist",
-            background_style="mesh",
+            template="marketing",
+            background_style="texture",
+            element_style="sticker",
             motion="punchy",
         ),
         style=TemplateStyle(
             voice=(
-                "Be punchy and benefit-driven, like a product launch: short, bold lines, "
-                "active verbs, minimal jargon, and one big takeaway per beat. Lead with the "
-                "payoff. Headings should read like confident claims, not labels."
+                "Be punchy and benefit-driven, like a product launch. Each beat is ONE bold "
+                "headline that reads like a confident claim, not a label — no bullet lists, no "
+                "paragraphs on screen. Keep on-screen text to that single line and let the "
+                "narration carry the detail. Always name a vivid, concrete visual (a real "
+                "object, scene, or character) that could fill the whole frame."
             ),
-            max_bullets=3,
+            max_bullets=1,
             diagram_bias=(
-                "Prefer bold single-idea slides over diagrams; only diagram a beat when it is "
+                "Prefer one bold visual per beat over diagrams; only diagram a beat when it is "
                 "an unmistakable before/after or step-by-step comparison."
             ),
             default_delivery="excited",
@@ -92,12 +97,13 @@ TEMPLATES: dict[str, Template] = {
     "whiteboard": Template(
         id="whiteboard",
         name="Whiteboard",
-        description="A hand-drawn feel: blue ink on paper with a subtle grid.",
+        description="A hand-drawn feel: ink blue on warm paper with a subtle grid.",
         theme=SceneTheme(
-            primary="#2563eb",
-            background="#f4f1e8",
-            foreground="#1f2937",
+            primary="#1d4ed8",
+            background="#faf6ee",
+            foreground="#1e293b",
             font="Geist",
+            template="whiteboard",
             background_style="grid",
             sketch=True,
             motion="sketch",

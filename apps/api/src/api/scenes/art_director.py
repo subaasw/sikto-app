@@ -10,8 +10,14 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.media.resolver import resolve_asset
-from api.scenes.assemble import hero_layout, icon_grid_layout, presenter_layout
+from api.media.resolver import ResolvedAsset, resolve_asset
+from api.scenes.assemble import (
+    hero_layout,
+    icon_grid_layout,
+    poster_layout,
+    poster_text_layout,
+    presenter_layout,
+)
 from api.scenes.schema import ElementType, Scene, SceneDocument, SceneKind
 from api.scenes.templates import Template
 
@@ -36,6 +42,37 @@ def _is_plain_slide(scene: Scene) -> bool:
     return any(e.type == ElementType.heading and e.text for e in scene.elements)
 
 
+async def _make_poster(
+    session: AsyncSession | None,
+    scene: Scene,
+    color: str | None,
+    registry: dict[str, ResolvedAsset] | None = None,
+) -> Scene:
+    """Marketing: a plain slide becomes a visual-first poster — one dominant image
+    + a single headline (no bullets). Falls back to a bold typographic poster when
+    no image resolves, so marketing never shows a bulleted text slide."""
+    heading = next((e for e in scene.elements if e.type == ElementType.heading and e.text), None)
+    if heading is None or not heading.text:
+        return scene
+    # Query ONLY the LLM's concrete visual subject, never the headline — marketing
+    # headlines are metaphorical ("Ship faster" must not resolve to a boat).
+    asset = (
+        await resolve_asset(session, scene.visual_query, color=color, registry=registry, prefer_photo=True)
+        if scene.visual_query
+        else None
+    )
+    n = scene.narration
+    if asset is not None:
+        return poster_layout(
+            scene.id, heading.text, asset.url,
+            narration=n.text, caption=n.caption, delivery=n.delivery, emphasis=heading.emphasis,
+        )
+    return poster_text_layout(
+        scene.id, heading.text,
+        narration=n.text, caption=n.caption, delivery=n.delivery, emphasis=heading.emphasis,
+    )
+
+
 def _make_presenter(scene: Scene) -> Scene:
     """Turn a plain slide into a talking stick-figure presenter. Procedural — no
     asset lookup, so it always succeeds (the figure lip-syncs the narration)."""
@@ -56,7 +93,7 @@ async def _upgrade(
     session: AsyncSession | None,
     scene: Scene,
     color: str | None,
-    registry: dict | None = None,
+    registry: dict[str, ResolvedAsset] | None = None,
 ) -> Scene | None:
     if scene.kind != SceneKind.slide:
         return None
@@ -114,19 +151,24 @@ async def art_direct(
     and upgrade the other eligible slides with a resolved graphic. Diagrams,
     equations, and stat scenes are never presenter-led."""
     color = template.theme.primary
+    is_marketing = template.id == "marketing"
     # Content-aware placement: the first plain slide (intro) and, for longer
-    # lessons, the last plain slide (conclusion) get the presenter.
+    # lessons, the last plain slide (conclusion) get the presenter. Marketing is
+    # visual-first, so it skips the talking presenter entirely.
     plain = [i for i, s in enumerate(doc.scenes) if _is_plain_slide(s)]
     presenter_at: set[int] = set()
-    if plain:
+    if plain and not is_marketing:
         presenter_at.add(plain[0])
         if len(plain) > 2:
             presenter_at.add(plain[-1])
 
-    registry: dict = {}  # concept → resolved asset, reused across the lesson
+    registry: dict[str, ResolvedAsset] = {}  # concept → resolved asset, reused across the lesson
     scenes: list[Scene] = []
     for i, scene in enumerate(doc.scenes):
         try:
+            if is_marketing and _is_plain_slide(scene):
+                scenes.append(await _make_poster(session, scene, color, registry))
+                continue
             if i in presenter_at:
                 scenes.append(_make_presenter(scene))
                 continue

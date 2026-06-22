@@ -20,7 +20,12 @@ def _icon(name: str) -> MediaResult:
     return MediaResult(name, url, url, "iconify", "icon")
 
 
-def _patch(monkeypatch, *, uploads=None, illustrations=None, icons=None):
+def _photo(title: str) -> MediaResult:
+    url = f"https://openverse/{title.replace(' ', '-')}.jpg"
+    return MediaResult(title, url, url, "openverse", "image")
+
+
+def _patch(monkeypatch, *, uploads=None, illustrations=None, icons=None, images=None):
     async def fake_media(session, *, tags, kind=None, limit=1):
         return uploads or []
 
@@ -30,9 +35,13 @@ def _patch(monkeypatch, *, uploads=None, illustrations=None, icons=None):
     async def fake_icons(query, k):
         return icons or []
 
+    async def fake_images(query, k):
+        return images or []
+
     monkeypatch.setattr(resolver, "search_media_assets", fake_media)
     monkeypatch.setattr(resolver, "search_illustrations", fake_ill)
     monkeypatch.setattr(resolver, "search_icons", fake_icons)
+    monkeypatch.setattr(resolver, "search_images", fake_images)
 
 
 def test_keywords_strip_stopwords():
@@ -82,6 +91,20 @@ async def test_none_when_nothing_matches(monkeypatch):
     _patch(monkeypatch)
     assert await resolver.resolve_asset(None, "the of to", color=None) is None  # all stopwords
     assert await resolver.resolve_asset(None, "quantum entanglement", color=None) is None
+
+
+async def test_prefer_photo_returns_top_openverse_photo(monkeypatch):
+    # Marketing: the top real photo wins — even with a free-text title, since the
+    # icon-name relevance filter doesn't apply to photos.
+    _patch(monkeypatch, images=[_photo("a rocket at dawn")], icons=[_icon("rocket")])
+    got = await resolver.resolve_asset(None, "rocket launch", prefer_photo=True)
+    assert got is not None and got.kind == "photo" and got.source == "openverse"
+
+
+async def test_prefer_photo_never_falls_back_to_mono_icon(monkeypatch):
+    # No photo, no illustration → marketing gets nothing rather than a cheap icon.
+    _patch(monkeypatch, images=[], illustrations=[], icons=[_icon("rocket")])
+    assert await resolver.resolve_asset(None, "rocket launch", prefer_photo=True) is None
 
 
 async def test_registry_reuses_the_same_asset(monkeypatch):

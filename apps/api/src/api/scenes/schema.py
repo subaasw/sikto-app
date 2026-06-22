@@ -100,7 +100,9 @@ class SceneTheme(BaseModel):
     background: str = "#0c0e08"
     foreground: str = "#edf2e2"
     font: str = "Geist"
-    background_style: Literal["gradient", "mesh", "grid", "solid"] = "gradient"
+    template: str = "explainer"  # picks the render module (scene-kit templates/registry)
+    background_style: Literal["gradient", "mesh", "grid", "solid", "texture"] = "gradient"
+    element_style: Literal["plain", "sticker"] = "plain"  # sticker = cut-out border (marketing)
     sketch: bool = False  # hand-drawn (Rough.js) shapes/connectors — whiteboard look
     motion: Literal["smooth", "punchy", "sketch"] = "smooth"  # entrance style per template
 

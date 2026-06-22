@@ -81,8 +81,8 @@ async def test_brain_repairs_invalid_scene():
 
 async def test_template_shapes_generation_structurally():
     """The same model output is reshaped by the template: marketing caps bullets at
-    3 and stamps its 'excited' house tone; whiteboard keeps 4 and goes 'calm'. Proves
-    templates drive structure/delivery, not just colours."""
+    1 (minimal on-screen text) and stamps its 'excited' house tone; whiteboard keeps 4
+    and goes 'calm'. Proves templates drive structure/delivery, not just colours."""
 
     def handler(schema: type[BaseModel], n: int) -> BaseModel:
         if schema is LessonOutline:
@@ -109,5 +109,5 @@ async def test_template_shapes_generation_structurally():
         "src", llm=FakeStructuredLLM(handler), template=get_template("whiteboard")
     )
 
-    assert len(bullets_of(mkt)) == 3 and mkt.scenes[0].narration.delivery == "excited"
+    assert len(bullets_of(mkt)) == 1 and mkt.scenes[0].narration.delivery == "excited"
     assert len(bullets_of(wb)) == 4 and wb.scenes[0].narration.delivery == "calm"
