@@ -199,7 +199,7 @@ def setup() -> None:
 
 
 def main() -> None:
-    from api.observability import configure_logging
+    from api.logger import configure_logging
 
     configure_logging()
     app()

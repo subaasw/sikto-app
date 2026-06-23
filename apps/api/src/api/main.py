@@ -13,7 +13,7 @@ from api.auth import register_auth_error_handler
 from api.config import get_settings
 from api.db import check_connection, engine
 from api.jobs.worker import run_worker_loop
-from api.observability import configure_logging
+from api.logger import add_request_logging, configure_logging, register_exception_handlers
 from api.routers import assets, auth, chat, health, lessons, notebooks, sources, templates
 
 settings = get_settings()
@@ -62,7 +62,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+add_request_logging(app)
 register_auth_error_handler(app)
+register_exception_handlers(app)
 
 app.include_router(health.router)
 app.include_router(auth.router)

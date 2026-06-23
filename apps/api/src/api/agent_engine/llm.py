@@ -16,7 +16,7 @@ from pydantic import BaseModel, ValidationError
 
 from api.agent.providers import agent_llm_chain, provider_label
 from api.config import get_settings
-from api.observability import short_error
+from api.logger import short_error
 
 logger = logging.getLogger("api.brain")
 
