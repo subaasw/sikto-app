@@ -1,7 +1,6 @@
 """The media library API. Mounted at /assets (the /media path is the static
 file mount that serves stored bytes)."""
 
-import os
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -10,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.config import get_settings
 from api.db import get_session
+from api.media.optimize import optimize_image
 from api.media.providers import search_online
 from api.media.repository import (
     create_media_asset,
@@ -137,7 +137,7 @@ async def upload_assets(
         data = await file.read()
         if not data:
             continue  # skip empties rather than failing the whole batch
-        ext = os.path.splitext(file.filename or "")[1].lower() or ".bin"
+        data, ext = optimize_image(data, file.filename or "")
         key = f"library/{uuid.uuid4().hex}{ext}"
         storage.put(key, data)
         asset = await create_media_asset(

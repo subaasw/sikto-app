@@ -40,7 +40,7 @@ async def list_media_assets(
 ) -> list[MediaAsset]:
     stmt = select(MediaAsset).order_by(col(MediaAsset.created_at).desc()).limit(limit)
     if kind:
-        stmt = stmt.where(MediaAsset.kind == kind)
+        stmt = stmt.where(col(MediaAsset.kind) == kind)
     result = await session.execute(stmt)
     assets = list(result.scalars().all())
     if query:

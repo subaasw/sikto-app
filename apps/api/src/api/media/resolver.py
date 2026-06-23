@@ -12,8 +12,12 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.config import get_settings
 from api.media.providers import MediaResult, search_icons, search_illustrations, search_images
 from api.media.repository import search_media_assets
+from api.media.svg import recolor_svg, svg_data_uri
+from api.models import MediaAsset
+from api.storage import LocalStorage
 
 logger = logging.getLogger("api.media.resolver")
 
@@ -100,6 +104,26 @@ async def _first_relevant(
     return next((r for r in results if _relevant(r.title, keywords)), None)
 
 
+def _resolve_upload(asset: MediaAsset, color: str | None) -> "ResolvedAsset | None":
+    """A library asset → a usable image URL. Imported assets carry an external
+    url. Uploaded files live in storage as `storage_key`; SVG uploads are inlined
+    as a data URI (recolored to the palette when they're icons) so they stay
+    editable yet themeable. Non-SVG uploads aren't resolvable here yet."""
+    if asset.url:
+        return ResolvedAsset(url=asset.url, kind="upload", source="library")
+    key = asset.storage_key
+    if not key or not key.lower().endswith(".svg"):
+        return None  # ponytail: raster uploads need base_url to serve; out of scope here
+    try:
+        svg = LocalStorage(get_settings().storage_dir).get(key).decode()
+    except Exception:
+        logger.warning("could not read uploaded svg %r", key, exc_info=True)
+        return None
+    if color and asset.kind == "icon":
+        svg = recolor_svg(svg, color)
+    return ResolvedAsset(url=svg_data_uri(svg), kind="upload", source="library")
+
+
 async def _lookup(
     session: AsyncSession | None,
     keywords: list[str],
@@ -110,8 +134,9 @@ async def _lookup(
     if session is not None:
         uploads = await search_media_assets(session, tags=keywords, kind=None, limit=1)
         for asset in uploads:
-            if asset.url:
-                return ResolvedAsset(url=asset.url, kind="upload", source="library")
+            resolved = _resolve_upload(asset, color)
+            if resolved is not None:
+                return resolved
 
     # Iconify search returns nothing for multi-word phrases ("leaf with sunlight"
     # -> []), so try the two-word phrase first, then single keywords MOST-SPECIFIC
