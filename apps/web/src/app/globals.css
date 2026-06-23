@@ -19,33 +19,18 @@
 }
 
 :root {
-  /* light — warm paper + lime */
-  --background: #f6f6ef;
-  --surface: #ffffff;
-  --foreground: #14160e;
-  --muted: #eceadf;
-  --muted-foreground: #6c7060;
-  --border: #14160e;
-  --border-soft: #d7d6c8;
-  --primary: #84cc16;
-  --primary-foreground: #14160e;
-  --ring: #65a30d;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* dark — green-black + bright lime */
-    --background: #0c0e08;
-    --surface: #14170e;
-    --foreground: #edf2e2;
-    --muted: #1b1f12;
-    --muted-foreground: #9aa285;
-    --border: #2f3720;
-    --border-soft: #242a18;
-    --primary: #a3e635;
-    --primary-foreground: #0c0e08;
-    --ring: #a3e635;
-  }
+  /* dark only — green-black + bright lime. Forced regardless of OS setting. */
+  color-scheme: dark;
+  --background: #0c0e08;
+  --surface: #14170e;
+  --foreground: #edf2e2;
+  --muted: #1b1f12;
+  --muted-foreground: #9aa285;
+  --border: #2f3720;
+  --border-soft: #242a18;
+  --primary: #a3e635;
+  --primary-foreground: #0c0e08;
+  --ring: #a3e635;
 }
 
 * {

@@ -21,7 +21,7 @@ export function springEase(t: number): number {
   if (t <= 0) return 0;
   if (t >= 1) return 1;
   const omega = 9;
-  const zeta = 0.62;
+  const zeta = 0.72; // calmer settle — less overshoot so entrances don't wobble
   const wd = omega * Math.sqrt(1 - zeta * zeta);
   return (
     1 - Math.exp(-zeta * omega * t) * (Math.cos(wd * t) + ((zeta * omega) / wd) * Math.sin(wd * t))

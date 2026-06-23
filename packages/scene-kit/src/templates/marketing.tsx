@@ -24,7 +24,7 @@ export function speechPulse(words: WordTiming[] | undefined, progressMs: number)
  * or rotation. */
 export const marketing: TemplateModule = {
   id: 'marketing',
-  entrance: ({ element, anim, atMs, progressMs, profile, words }: EntranceCtx): CSSProperties => {
+  entrance: ({ element, anim, atMs, progressMs, profile }: EntranceCtx): CSSProperties => {
     if (anim.type === 'draw') return { opacity: 1 };
     const lin = linear(atMs, progressMs, anim.duration_ms);
     if (profile === 'slide') return { opacity: easeOut(lin) };
@@ -35,11 +35,11 @@ export const marketing: TemplateModule = {
       return { opacity: clamp(lin * 1.8, 0, 1), transform: `scale(${(0.86 + 0.14 * s).toFixed(3)})` };
     }
 
-    // Visuals: clean scale-in + a gentle, smooth breath on the voice. No shake.
-    const breath = 1 + 0.02 * speechPulse(words, progressMs);
+    // Visuals: a single clean scale-in that settles. No breath/pulse — any
+    // continuous scaling read as the image "shaking".
     return {
       opacity: clamp(lin * 1.6, 0, 1),
-      transform: `scale(${((0.9 + 0.1 * s) * breath).toFixed(3)})`,
+      transform: `scale(${(0.9 + 0.1 * s).toFixed(3)})`,
     };
   },
   elementTreatment: (element: Element, theme: SceneTheme): ElementTreatment => {

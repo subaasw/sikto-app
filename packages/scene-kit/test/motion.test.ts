@@ -1,33 +1,27 @@
 import assert from 'node:assert';
 import { test } from 'node:test';
-import { appearance, springEase } from '../src/motion.ts';
+import { clamp, easeOut, linear, springEase } from '../src/motion.ts';
 
-const anim = { target_id: 'x', type: 'reveal' as const, at_ms: 0, duration_ms: 500 };
-const mid = 250; // halfway through the entrance
+// Per-template entrance motion is tested in templates.test.ts; this file covers
+// the shared easing/progress math those modules build on.
 
-test('slide profile is restrained: a fade, no transform', () => {
-  const s = appearance(anim, 0, mid, 'smooth', 'slide');
-  assert.ok((s.opacity as number) > 0 && (s.opacity as number) < 1);
-  assert.equal(s.transform, undefined);
+test('linear is guarded 0..1 progress from an element start time', () => {
+  assert.equal(linear(0, 0, 500), 0);
+  assert.equal(linear(0, 250, 500), 0.5);
+  assert.equal(linear(0, 9999, 500), 1); // clamps
+  assert.equal(linear(0, 100, 0), 1); // zero duration → finished, not NaN
 });
 
-test('punchy (marketing) pops with a scale transform', () => {
-  const s = appearance(anim, 0, mid, 'punchy', 'video');
-  assert.ok(typeof s.transform === 'string' && s.transform.startsWith('scale('));
-});
-
-test('smooth (explainer) reveal rises (translateY)', () => {
-  const s = appearance(anim, 0, mid, 'smooth', 'video');
-  assert.ok(typeof s.transform === 'string' && s.transform.includes('translateY'));
-});
-
-test('sketch (whiteboard) is a plain fade', () => {
-  const s = appearance(anim, 0, mid, 'sketch', 'video');
-  assert.equal(s.transform, undefined);
-  assert.ok((s.opacity as number) > 0);
+test('easeOut and clamp behave', () => {
+  assert.equal(easeOut(0), 0);
+  assert.ok(Math.abs(easeOut(1) - 1) < 1e-9);
+  assert.equal(clamp(5, 0, 1), 1);
 });
 
 test('springEase settles to ~1 and starts at 0', () => {
   assert.equal(springEase(0), 0);
   assert.ok(Math.abs(springEase(1) - 1) < 1e-6);
+  // Calm settle: overshoot stays modest (zeta tuned up) so entrances don't wobble.
+  const peak = Math.max(...Array.from({ length: 100 }, (_, i) => springEase(i / 99)));
+  assert.ok(peak < 1.12, `overshoot too large: ${peak}`);
 });

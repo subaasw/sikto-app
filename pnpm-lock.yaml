@@ -33,6 +33,9 @@ importers:
       '@remotion/bundler':
         specifier: ^4.0.475
         version: 4.0.475(@swc/helpers@0.5.15)(postcss@8.5.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@remotion/google-fonts':
+        specifier: ^4.0.475
+        version: 4.0.482(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@remotion/renderer':
         specifier: ^4.0.475
         version: 4.0.475(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -864,6 +867,9 @@ packages:
     resolution: {integrity: sha512-Qcd+QHa0ztJZkJAbP/cxmgrj5m4zhitaQRNIHn5+vpuMs4TVm7lW0vYdBHHCYyqw3Nd6hjpgKQzrtnlCF3flXg==}
     cpu: [x64]
     os: [win32]
+
+  '@remotion/google-fonts@4.0.482':
+    resolution: {integrity: sha512-1LvcOJLMYKTP65MC+8xAzEG956XEp71r6UjjGHZZIn4taGq7/ZdkjaCLfHAc1EkF28ybuzhvt+RqxQ7jPipzdA==}
 
   '@remotion/licensing@4.0.475':
     resolution: {integrity: sha512-ZBDKg+iRa/mVoX/EWM40MypICKokWcG4c4RKQ4QKmy9JgJssbnFSy9mikPKMi/64J3KPEfAT1hv4JRKlNdoX5g==}
@@ -2833,6 +2839,12 @@ packages:
       react: '>=16.8.0'
       react-dom: '>=16.8.0'
 
+  remotion@4.0.482:
+    resolution: {integrity: sha512-FfKxdxL9fW9UnY/WS9RLitevoDCf+fa5WZaNz4/CHhrXF1nc3SV+6GBp7td+dwvN1+UnP9t5DheIGvvoxL22NQ==}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
+
   require-from-string@2.0.2:
     resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
     engines: {node: '>=0.10.0'}
@@ -3952,6 +3964,13 @@ snapshots:
 
   '@remotion/compositor-win32-x64-msvc@4.0.475':
     optional: true
+
+  '@remotion/google-fonts@4.0.482(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      remotion: 4.0.482(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+    transitivePeerDependencies:
+      - react
+      - react-dom
 
   '@remotion/licensing@4.0.475': {}
 
@@ -6022,6 +6041,11 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
 
   remotion@4.0.477(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    dependencies:
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+
+  remotion@4.0.482(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)

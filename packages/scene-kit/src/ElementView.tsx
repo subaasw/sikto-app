@@ -6,6 +6,11 @@ import { seedFromId, sketchLine, sketchRect } from './sketch';
 import { StickFigure } from './StickFigure';
 import type { Element, Frame, SceneTheme, WordTiming } from './types';
 
+// Headings & card titles render in a hand-drawn display face; body text uses the
+// theme's modern sans (theme.font). Loaded by this real family name in both the
+// web player and the Remotion render, so measurement and output match.
+const HEADING_FAMILY = 'Caveat, cursive';
+
 // Memoize one measurer per (family, weight) so we don't recreate the canvas ctx.
 const measurers = new Map<string, Measure>();
 function measureFor(fontFamily: string, weight: number): Measure {
@@ -85,9 +90,9 @@ export function ElementView({
 }) {
   switch (element.type) {
     case 'heading': {
-      const size = fitted(element.text ?? '', element.frame, theme.font, 700, { minPx: 18, maxPx: 96, lineHeight: 1.1 });
+      const size = fitted(element.text ?? '', element.frame, HEADING_FAMILY, 700, { minPx: 18, maxPx: 96, lineHeight: 1.1 });
       return (
-        <div style={{ fontSize: size, fontWeight: 700, lineHeight: 1.1, ...clampLines(3) }}>
+        <div style={{ fontFamily: HEADING_FAMILY, fontSize: size, fontWeight: 700, lineHeight: 1.1, ...clampLines(3) }}>
           {withEmphasis(element.text ?? '', element.emphasis, theme.primary)}
         </div>
       );
@@ -137,7 +142,7 @@ export function ElementView({
     }
     case 'card': {
       if (theme.sketch) return <SketchCard element={element} theme={theme} />;
-      const size = fitted(element.text ?? '', element.frame, theme.font, 600, { minPx: 12, maxPx: 38, lineHeight: 1.2 });
+      const size = fitted(element.text ?? '', element.frame, HEADING_FAMILY, 600, { minPx: 12, maxPx: 38, lineHeight: 1.2 });
       return (
         <div
           style={{
@@ -152,6 +157,7 @@ export function ElementView({
             borderRadius: '0.6cqw',
             background: 'rgba(255,255,255,0.05)',
             color: theme.foreground,
+            fontFamily: HEADING_FAMILY,
             fontSize: size,
             fontWeight: 600,
             lineHeight: 1.2,
@@ -242,7 +248,8 @@ function SketchCard({ element, theme }: { element: Element; theme: SceneTheme })
         style={{
           position: 'relative',
           color: theme.foreground,
-          fontSize: fitted(element.text ?? '', element.frame, theme.font, 600, { minPx: 12, maxPx: 38, lineHeight: 1.2 }),
+          fontFamily: HEADING_FAMILY,
+          fontSize: fitted(element.text ?? '', element.frame, HEADING_FAMILY, 600, { minPx: 12, maxPx: 38, lineHeight: 1.2 }),
           fontWeight: 600,
           lineHeight: 1.2,
           ...clampLines(4),
