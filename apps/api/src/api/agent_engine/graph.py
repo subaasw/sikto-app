@@ -1,8 +1,8 @@
 """Assemble the brain as a LangGraph state machine and expose a simple entrypoint.
 
-    research ──▶ outline ──▶ compose ──(issues?)──▶ repair ──(issues?)──▶ repair ...
-                               │                       │
-                               └────────(clean)────────┴──▶ END
+    research ─▶ outline ─▶ compose ─▶ critique ─▶ vision_qa ──(issues?)──▶ repair ─▶ ...
+                                                       │                      │
+                                                       └────────(clean)───────┴──▶ END
 """
 
 from typing import Any, cast
@@ -13,6 +13,7 @@ from api.agent_engine.llm import BrainError, StructuredLLM, structured_llm_from_
 from api.agent_engine.nodes import BrainNodes
 from api.agent_engine.research import WebSearch, web_search_from_settings
 from api.agent_engine.state import BrainState
+from api.agent_engine.vision import VisionReviewer, vision_reviewer_from_settings
 from api.scenes.assemble import divide_scenes
 from api.scenes.schema import SceneDocument
 from api.scenes.templates import Template, get_template
@@ -23,11 +24,17 @@ def build_brain(nodes: BrainNodes) -> Any:
     graph.add_node("research", nodes.research)
     graph.add_node("outline", nodes.outline)
     graph.add_node("compose", nodes.compose)
+    graph.add_node("critique", nodes.critique)
+    graph.add_node("vision_qa", nodes.vision_qa)
     graph.add_node("repair", nodes.repair)
     graph.set_entry_point("research")
     graph.add_edge("research", "outline")
     graph.add_edge("outline", "compose")
-    graph.add_conditional_edges("compose", nodes.route, {"repair": "repair", "done": END})
+    # compose → critique (editor) → vision_qa (renders + inspects) → route → repair.
+    # critique and vision_qa each add quality/visual issues once; repair fixes them.
+    graph.add_edge("compose", "critique")
+    graph.add_edge("critique", "vision_qa")
+    graph.add_conditional_edges("vision_qa", nodes.route, {"repair": "repair", "done": END})
     graph.add_conditional_edges("repair", nodes.route, {"repair": "repair", "done": END})
     return graph.compile()
 
@@ -70,6 +77,7 @@ async def generate_scene_document(
     source_title: str = "",
     llm: StructuredLLM | None = None,
     search: WebSearch | None = None,
+    vision: VisionReviewer | None = None,
     max_repairs: int = 2,
     template: Template | None = None,
     mode: str = "auto",
@@ -78,6 +86,7 @@ async def generate_scene_document(
     nodes = BrainNodes(
         llm or structured_llm_from_settings(),
         search=search,
+        vision=vision or vision_reviewer_from_settings(),
         max_repairs=max_repairs,
         style=style,
         mode=mode,

@@ -7,7 +7,9 @@ from pydantic import BaseModel
 
 from api.agent_engine.graph import generate_scene_document
 from api.scenes.schema import (
+    CritiqueIssue,
     ElementType,
+    LessonCritique,
     LessonOutline,
     ManimDraft,
     OutlineBeat,
@@ -77,6 +79,53 @@ async def test_brain_repairs_invalid_scene():
 
     assert validate_document(doc) == []
     assert doc.scenes[0].narration.text == "now grounded and complete"
+
+
+async def test_critique_feeds_the_repair_loop():
+    """A clean-validating lesson still gets repaired when the editor flags a quality
+    issue — proving the critique pass drives the same repair loop as the validator."""
+
+    def handler(schema: type[BaseModel], n: int) -> BaseModel:
+        if schema is LessonOutline:
+            return LessonOutline(
+                title="T", summary="S", beats=[OutlineBeat(title="b", summary="s")]
+            )
+        if schema is SlideDraft:
+            return SlideDraft(heading="H", bullets=["a"], narration="first" if n == 1 else "revised")
+        if schema is LessonCritique:
+            # Flag s0 on the first review only; after repair, no further issues.
+            return LessonCritique(
+                issues=[CritiqueIssue(scene_id="s0", problem="repeats the intro")] if n == 1 else []
+            )
+        raise AssertionError(schema)
+
+    doc = await generate_scene_document("source", llm=FakeStructuredLLM(handler), max_repairs=2)
+    assert doc.scenes[0].narration.text == "revised"
+
+
+async def test_vision_qa_feeds_the_repair_loop():
+    """A reviewer that flags a visual defect drives the same repair loop — the scene
+    is regenerated even though it validates and the editor found nothing."""
+
+    class FakeVision:
+        async def review(self, document):
+            return ["scene s0: text overflows the card"]
+
+    def handler(schema: type[BaseModel], n: int) -> BaseModel:
+        if schema is LessonOutline:
+            return LessonOutline(
+                title="T", summary="S", beats=[OutlineBeat(title="b", summary="s")]
+            )
+        if schema is SlideDraft:
+            return SlideDraft(heading="H", bullets=["a"], narration="first" if n == 1 else "revised")
+        if schema is LessonCritique:
+            return LessonCritique(issues=[])
+        raise AssertionError(schema)
+
+    doc = await generate_scene_document(
+        "source", llm=FakeStructuredLLM(handler), vision=FakeVision(), max_repairs=2
+    )
+    assert doc.scenes[0].narration.text == "revised"
 
 
 async def test_template_shapes_generation_structurally():

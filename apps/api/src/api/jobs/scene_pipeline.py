@@ -12,9 +12,12 @@ from typing import Any, Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.engines.protocols import SourceLoader, TTSClient
+from api.agent_engine.llm import StructuredLLM, structured_llm_from_settings
+from api.engines.protocols import Document, SourceLoader, TTSClient
 from api.enums import JobStatus
 from api.exports import script_markdown, source_markdown
+from api.ingestion.loaders import combine_documents, split_sources
+from api.logger import short_error
 from api.jobs.manim_render import render_manim_clips
 from api.jobs.repository import (
     create_lesson_from_scene_document,
@@ -25,6 +28,7 @@ from api.jobs.repository import (
     update_source_content,
 )
 from api.scenes.art_director import art_direct
+from api.scenes.quiz import build_quiz
 from api.scenes.schema import SceneDocument
 from api.scenes.templates import Template, get_template
 from api.storage import Storage
@@ -84,8 +88,21 @@ async def run_scene_pipeline(
 
     try:
         await update_job(session, job_id, status=JobStatus.loading, step="loading source")
-        loader = engines.select_loader(raw_input)
-        document = await loader.load(raw_input)
+        # raw_input may hold several sources (links/videos/text). Load each and
+        # combine into one document; skip individual failures so one dead URL
+        # doesn't sink a multi-source lesson.
+        parts = split_sources(raw_input)
+        loaded: list[Document] = []
+        last_err: Exception | None = None
+        for part in parts:
+            try:
+                loaded.append(await engines.select_loader(part).load(part))
+            except Exception as exc:
+                last_err = exc
+                logger.warning("job %s: source failed to load: %s", job_id, exc)
+        if not loaded:
+            raise last_err or ValueError("no source could be loaded")
+        document = combine_documents(loaded)
         await update_source_content(session, source_id, text=document.text, title=document.title)
         # Archive the extracted source (e.g. YouTube transcript) as Markdown.
         engines.storage.put(source_markdown_key(job_id), source_markdown(document).encode())
@@ -103,10 +120,19 @@ async def run_scene_pipeline(
         # animated treatment.
         profile = "slide" if source.mode == "course" else "video"
         scene_doc = scene_doc.model_copy(update={"theme": template.theme, "profile": profile})
-        # Art direction: upgrade eligible slides with a relevant, recolored
-        # graphic (uploads → Iconify). Best-effort; never blocks the lesson.
-        scene_doc = await art_direct(session, scene_doc, template)
-        lesson = await create_lesson_from_scene_document(session, job_id, source_id, scene_doc)
+        # Art direction: an LLM art-director picks each plain slide's layout +
+        # visual (rule-based fallback when no model is configured). Best-effort.
+        try:
+            art_llm: StructuredLLM | None = structured_llm_from_settings()
+        except Exception:
+            art_llm = None
+        scene_doc = await art_direct(session, scene_doc, template, llm=art_llm)
+        # Comprehension quiz from the lesson content (best-effort; reuses the
+        # art-director's LLM, empty when no model is configured).
+        quiz = await build_quiz(scene_doc, art_llm)
+        lesson = await create_lesson_from_scene_document(
+            session, job_id, source_id, scene_doc, quiz=quiz
+        )
         # Archive the narration script as Markdown.
         engines.storage.put(script_markdown_key(job_id), script_markdown(scene_doc).encode())
         logger.info("job %s: %d scenes", job_id, len(scene_doc.scenes))
@@ -173,6 +199,13 @@ async def run_scene_pipeline(
         await update_job(session, job_id, status=JobStatus.done, step="done")
     except Exception as exc:
         logger.exception("job %s failed", job_id)
-        current = await get_job(session, job_id)
-        step = current.step if current else None
-        await update_job(session, job_id, status=JobStatus.failed, step=step, error=str(exc))
+        # A DB error would have aborted this session's transaction, so the reads/writes
+        # below would fail too and leave the job stuck "in progress" forever. Roll back
+        # first to clear that state; prior status updates already committed per call.
+        try:
+            await session.rollback()
+            current = await get_job(session, job_id)
+            step = current.step if current else None
+            await update_job(session, job_id, status=JobStatus.failed, step=step, error=short_error(exc))
+        except Exception:
+            logger.exception("job %s: failed to record failure status", job_id)

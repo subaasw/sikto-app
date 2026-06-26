@@ -66,11 +66,17 @@ class FallbackStructuredLLM:
     """Tries each provider in order; on any error, falls back to the next. Used to
     put a free (rate-limited) provider in front of a paid one."""
 
-    def __init__(self, providers: list[StructuredLLM], labels: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        providers: list[StructuredLLM],
+        labels: list[str] | None = None,
+        models: list[str] | None = None,
+    ) -> None:
         if not providers:
             raise BrainError("FallbackStructuredLLM needs at least one provider")
         self._providers = providers
         self._labels = labels or [f"provider {i + 1}" for i in range(len(providers))]
+        self._models = models  # model ids parallel to providers, for cooldown on failure
 
     async def generate(self, system: str, user: str, schema: type[T]) -> T:
         last_exc: Exception | None = None
@@ -79,6 +85,10 @@ class FallbackStructuredLLM:
                 return await provider.generate(system, user, schema)
             except Exception as exc:  # provider down / rate-limited / bad key → next
                 last_exc = exc
+                if self._models and i < len(self._models):
+                    from api.agent.model_switch import note_failure
+
+                    note_failure(self._models[i])  # next request skips this model
                 nxt = self._labels[i + 1] if i + 1 < len(self._labels) else None
                 tail = f" → trying {nxt}" if nxt else ""
                 logger.warning("%s %s for %s%s", self._labels[i], short_error(exc), schema.__name__, tail)
@@ -143,24 +153,33 @@ def structured_llm_from_settings(*, temperature: float = 0.4) -> StructuredLLM:
     DeepSeek as the automatic fallback. Whichever keys are set, NVIDIA goes first."""
     from langchain_openai import ChatOpenAI
 
-    chain = agent_llm_chain(get_settings())
+    settings = get_settings()
+    chain = agent_llm_chain(settings)
     if not chain:
         raise BrainError("no agent LLM configured: set NVIDIA_API_KEY or DEEPSEEK_API_KEY")
 
     providers: list[StructuredLLM] = []
     labels: list[str] = []
+    models: list[str] = []
     for config in chain:
         params: dict[str, object] = {
             "model": config.model,
             "base_url": config.base_url,
             "api_key": config.api_key,
             "temperature": temperature,
+            # Cap per-request time so a stuck provider fails over instead of hanging.
+            "request_timeout": settings.llm_timeout_seconds,
+            # Without this the SDK retries timeouts twice, turning the cap into ~3x.
+            "max_retries": 0,
         }
         if config.rate_limiter is not None:  # shared NVIDIA throttle
             params["rate_limiter"] = config.rate_limiter
         if config.extra_body:
             params["extra_body"] = config.extra_body
         providers.append(LangChainStructuredLLM(ChatOpenAI(**params)))
-        labels.append(provider_label(config.base_url))
+        labels.append(f"{provider_label(config.base_url)}:{config.model}")
+        models.append(config.model)
 
-    return providers[0] if len(providers) == 1 else FallbackStructuredLLM(providers, labels)
+    if len(providers) == 1:
+        return providers[0]
+    return FallbackStructuredLLM(providers, labels, models)

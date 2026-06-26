@@ -19,7 +19,7 @@ export function speechPulse(words: WordTiming[] | undefined, progressMs: number)
   return pulse;
 }
 
-/** Marketing — bold reel: grungy texture bg + sticker cut-outs. Motion is a
+/** Marketing — bold reel: clean dark bg + sticker cut-outs. Motion is a
  * clean scale-in; visuals get a subtle voice-synced breath — no shake, jitter,
  * or rotation. */
 export const marketing: TemplateModule = {

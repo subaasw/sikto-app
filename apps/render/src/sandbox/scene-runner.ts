@@ -8,6 +8,7 @@ import { RenderError, type CommandExecutor, type RenderResult } from './types.ts
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WORKER = join(HERE, 'scene-worker.mjs');
+const STILL_WORKER = join(HERE, 'scene-still-worker.mjs');
 const ENTRY = join(HERE, '..', 'remotion', 'index.ts');
 
 export interface SceneRenderOptions {
@@ -17,6 +18,10 @@ export interface SceneRenderOptions {
 
 export interface SceneRenderer {
   render(document: SceneDocument, opts?: SceneRenderOptions): Promise<RenderResult>;
+}
+
+export interface SceneStiller {
+  still(document: SceneDocument, sceneId: string): Promise<Buffer>;
 }
 
 /**
@@ -60,6 +65,39 @@ export class RemotionSceneRenderer implements SceneRenderer {
         throw new RenderError('scene render produced no video output', result);
       }
       return { video: readFileSync(outPath), stdout: result.stdout, stderr: result.stderr };
+    } finally {
+      rmSync(workdir, { recursive: true, force: true });
+    }
+  }
+}
+
+/**
+ * Renders a single PNG still of one scene from the Lesson composition (a
+ * mid-duration frame), for the API's Vision QA pass. Much cheaper than a full
+ * video render but still a cold bundle + Chromium, so callers use it sparingly.
+ */
+export class RemotionSceneStiller implements SceneStiller {
+  constructor(
+    private readonly executor: CommandExecutor = subprocessExecutor,
+    private readonly timeoutMs = 300_000,
+  ) {}
+
+  async still(document: SceneDocument, sceneId: string): Promise<Buffer> {
+    const workdir = mkdtempSync(join(tmpdir(), 'sikto-still-'));
+    try {
+      const propsPath = join(workdir, 'props.json');
+      const outPath = join(workdir, 'out.png');
+      writeFileSync(propsPath, JSON.stringify({ document, audio: [], manim_clips: {} }), 'utf8');
+
+      const result = await this.executor(
+        ['node', STILL_WORKER, '--entry', ENTRY, '--props', propsPath, '--out', outPath, '--id', 'Lesson', '--scene', sceneId],
+        { cwd: workdir, timeoutMs: this.timeoutMs },
+      );
+
+      if (result.timedOut) throw new RenderError('scene still timed out', result);
+      if (result.code !== 0) throw new RenderError(`scene still failed (exit ${result.code})`, result);
+      if (!existsSync(outPath)) throw new RenderError('scene still produced no image', result);
+      return readFileSync(outPath);
     } finally {
       rmSync(workdir, { recursive: true, force: true });
     }

@@ -61,18 +61,55 @@ def short_error(exc: BaseException) -> str:
     return (f"{name}: {first}" if first else name)[:140]
 
 
-def _format(record: "Record") -> str:
+# Badge colors: (foreground, background). loguru markup uses lowercase tags for
+# foreground and UPPERCASE for background, e.g. <white><RED> → white on red.
+_LEVEL_BG = {
+    "TRACE": ("white", "black"),
+    "DEBUG": ("white", "black"),
+    "INFO": ("white", "blue"),
+    "SUCCESS": ("white", "green"),
+    "WARNING": ("black", "yellow"),
+    "ERROR": ("white", "red"),
+    "CRITICAL": ("white", "red"),
+}
+# Keyed by status-code class (2xx, 3xx, ...).
+_STATUS_BG = {2: ("white", "green"), 3: ("black", "cyan"), 4: ("black", "yellow"), 5: ("white", "red")}
+
+
+def _badge(text: str, fg: str, bg: str) -> str:
+    """A bold, space-padded block: ` text ` as colored fg on a colored bg."""
+    BG = bg.upper()
+    return f"<{fg}><{BG}><bold> {text} </bold></{BG}></{fg}>"
+
+
+def _format(record: "Record", *, component: bool = True) -> str:
     """Build the format string per record so the request-id suffix only shows
     inside a request. Field *values* (e.g. the path in {message}) aren't parsed
-    for markup by loguru, so user input can't inject color tags."""
-    record["extra"].setdefault("component", "api")
-    suffix = "  <dim>·{extra[request_id]}</dim>" if "request_id" in record["extra"] else ""
-    return (
-        "<dim>[{extra[component]}]</dim> "
-        "<level>{level: <7}</level> "
-        "<green>{time:HH:mm:ss}</green>  "
-        "<level>{message}</level>" + suffix + "\n"
-    )
+    for markup by loguru, so user input can't inject color tags — the level and
+    status we inline below are our own controlled values.
+
+    ``component=False`` drops the ``[api]`` tag for the console sink — the dev
+    process runner already prefixes each line with the process name, so it'd be
+    a duplicate. The file sink keeps the tag (no runner prefix there)."""
+    extra = record["extra"]
+    extra.setdefault("component", "api")
+    lvl = record["level"].name
+    fg, bg = _LEVEL_BG.get(lvl, ("white", "blue"))
+
+    line = "<dim>[{extra[component]}]</dim> " if component else ""
+    line += _badge(f"{lvl:<7}", fg, bg) + " <dim>→</dim>  "
+    line += "<green>{time:HH:mm:ss}</green>  "
+    if "status" in extra:
+        sfg, sbg = _STATUS_BG.get(int(extra["status"]) // 100, ("white", "red"))
+        line += _badge(str(extra["status"]), sfg, sbg) + " "
+    line += "<level>{message}</level>"
+    if "request_id" in extra:
+        line += "  <dim>·{extra[request_id]}</dim>"
+    return line + "\n"
+
+
+def _console_format(record: "Record") -> str:
+    return _format(record, component=False)
 
 
 def configure_logging(settings: Settings | None = None, *, force: bool = False) -> None:
@@ -89,7 +126,7 @@ def configure_logging(settings: Settings | None = None, *, force: bool = False) 
     logger.add(
         sys.stderr,
         level=level,
-        format=_format,
+        format=_console_format,
         serialize=as_json,
         backtrace=True,
         diagnose=False,  # never dump local variable values (could leak secrets)
@@ -113,10 +150,13 @@ def configure_logging(settings: Settings | None = None, *, force: bool = False) 
     logging.root.setLevel(level)
     for name in _NOISY:
         logging.getLogger(name).setLevel(logging.WARNING)
-    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+    for name in ("uvicorn", "uvicorn.error"):
         lg = logging.getLogger(name)
         lg.handlers.clear()
         lg.propagate = True
+    # Our middleware (add_request_logging) already emits one clean access line per
+    # request; uvicorn.access would duplicate it in raw form, so silence it.
+    logging.getLogger("uvicorn.access").disabled = True
 
     _configured = True
 
@@ -180,13 +220,15 @@ def add_request_logging(app: "FastAPI") -> None:
                 response = await call_next(request)
             except Exception:
                 dur = (time.perf_counter() - start) * 1000
-                logger.bind(component="api").opt(exception=True).error(
-                    f"500 {request.method:<4} {_truncate(request.url.path)}  {dur:.0f}ms"
+                logger.bind(component="api", status=500).opt(exception=True).error(
+                    f"{request.method:<4} {_truncate(request.url.path)}  {dur:.0f}ms"
                 )
                 raise  # let the exception handler build the response
             dur = (time.perf_counter() - start) * 1000
-            msg = f"{response.status_code:>3} {request.method:<4} {_truncate(request.url.path)}  {dur:.0f}ms"
-            logger.bind(component="api").log(_access_level(response.status_code, request.url.path), msg)
+            msg = f"{request.method:<4} {_truncate(request.url.path)}  {dur:.0f}ms"
+            logger.bind(component="api", status=response.status_code).log(
+                _access_level(response.status_code, request.url.path), msg
+            )
             response.headers["X-Request-ID"] = rid
             return response
 
@@ -210,8 +252,9 @@ def demo() -> None:
     get_logger("api").info("plain api line")
     get_logger("worker").info("rendered lesson abc")
     with logger.contextualize(request_id="a1b2c3d4"):
-        get_logger("api").info("200 GET  /lessons/abc   23ms")
-        get_logger("api").warning("404 GET  /media/missing.png   2ms")
+        logger.bind(component="api", status=200).info("GET  /lessons/abc   23ms")
+        logger.bind(component="api", status=404).warning("GET  /media/missing.png   2ms")
+        logger.bind(component="api", status=500).error("POST /lessons   12ms")
     assert _component_for("api.jobs.worker") == "worker"
     assert _component_for("sqlalchemy.engine") == "db"
     assert _access_level(500, "/x") == "ERROR"

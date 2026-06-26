@@ -46,7 +46,7 @@ export function renderBackground(theme: SceneTheme, _progressMs?: number): React
           inset: 0,
           backgroundImage: `url("${GRAIN}")`,
           backgroundSize: '24cqw 24cqw',
-          opacity: 0.05,
+          opacity: 0.025, // barely-there: enough for depth, not a grungy/rusty texture
           mixBlendMode: 'overlay',
         }}
       />

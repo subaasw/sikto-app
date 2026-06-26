@@ -1,12 +1,18 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { SceneAudio, SceneDocument } from './remotion/schema.ts';
 import { RemotionRunner } from './sandbox/remotion-runner.ts';
-import { RemotionSceneRenderer, type SceneRenderer } from './sandbox/scene-runner.ts';
+import {
+  RemotionSceneRenderer,
+  RemotionSceneStiller,
+  type SceneRenderer,
+  type SceneStiller,
+} from './sandbox/scene-runner.ts';
 import type { Renderer } from './sandbox/types.ts';
 
 export function build(
   runner: Renderer = new RemotionRunner(),
   sceneRenderer: SceneRenderer = new RemotionSceneRenderer(),
+  sceneStiller: SceneStiller = new RemotionSceneStiller(),
 ): FastifyInstance {
   const app = Fastify({ bodyLimit: 32 * 1024 * 1024 });
 
@@ -31,6 +37,22 @@ export function build(
         manimClips: body.manim_clips,
       });
       return { video_b64: result.video.toString('base64') };
+    } catch (err) {
+      reply.code(500);
+      return { error: (err as Error).message };
+    }
+  });
+
+  // Render a single PNG still of one scene — used by the API's Vision QA pass.
+  app.post('/render-still', async (request, reply) => {
+    const body = request.body as { document?: SceneDocument; scene_id?: string };
+    if (!body.document || !body.scene_id) {
+      reply.code(400);
+      return { error: 'document and scene_id are required' };
+    }
+    try {
+      const image = await sceneStiller.still(body.document, body.scene_id);
+      return { image_b64: image.toString('base64') };
     } catch (err) {
       reply.code(500);
       return { error: (err as Error).message };

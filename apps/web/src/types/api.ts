@@ -20,8 +20,9 @@ export interface Job {
 }
 
 export interface CreateSourceInput {
-  type: SourceType;
-  input: string;
+  type: SourceType | 'mixed';
+  /** Several sources (links / videos / pasted text) combined into one lesson. */
+  inputs: string[];
   template?: string;
   mode?: string;
   voice?: string;

@@ -39,18 +39,6 @@ class LLMConfig:
     rate_limiter: "BaseRateLimiter | None" = None
 
 
-def _nvidia(settings: Settings) -> LLMConfig | None:
-    if not settings.nvidia_api_key:
-        return None
-    return LLMConfig(
-        base_url=settings.nvidia_base_url,
-        api_key=settings.nvidia_api_key,
-        model=settings.nvidia_model,
-        extra_body={"chat_template_kwargs": {"thinking": False}},
-        rate_limiter=_nvidia_limiter(settings.nvidia_rpm),
-    )
-
-
 def _deepseek(settings: Settings) -> LLMConfig | None:
     if not settings.deepseek_api_key:
         return None
@@ -71,9 +59,16 @@ def provider_label(base_url: str) -> str:
 
 
 def agent_llm_chain(settings: Settings) -> list[LLMConfig]:
-    """Providers to try in order: NVIDIA (free, primary) then DeepSeek (fallback),
-    skipping any without a key."""
-    return [c for c in (_nvidia(settings), _deepseek(settings)) if c is not None]
+    """Configs to try in order: the NVIDIA free-model cascade (advanced → light,
+    see api.agent.model_switch) followed by DeepSeek's own API as a last resort.
+    Imported lazily to avoid a circular import with model_switch."""
+    from api.agent.model_switch import nvidia_cascade
+
+    chain = list(nvidia_cascade(settings))
+    deepseek = _deepseek(settings)
+    if deepseek is not None:
+        chain.append(deepseek)
+    return chain
 
 
 def resolve_agent_llm(settings: Settings) -> LLMConfig:

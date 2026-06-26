@@ -1,17 +1,21 @@
 """Graph nodes for the brain. Each node is an async function of the state that
 returns a partial update. LLM calls go through the injected `StructuredLLM`."""
 
+import asyncio
 import logging
 from typing import Any
 
 from api.agent_engine.llm import StructuredLLM
 from api.agent_engine.research import NullSearch, WebSearch, format_research
 from api.agent_engine.state import BrainState
+from api.agent_engine.vision import VisionReviewer
 from api.config import get_settings
 from api.lesson_mode import DEFAULT_MODE, beat_bounds, mode_guidance
 from api.scenes.assemble import diagram_scene, manim_scene, slide_scene
 from api.scenes.schema import (
     DiagramDraft,
+    ElementType,
+    LessonCritique,
     LessonOutline,
     ManimDraft,
     OutlineBeat,
@@ -30,6 +34,13 @@ RESEARCH_SYSTEM = (
     "search queries that would surface accurate, relevant background to teach this topic "
     "well. Prefer specific queries over broad ones. If the source is already complete and "
     "self-contained, return an empty list."
+)
+
+RESEARCH_FOLLOWUP_SYSTEM = (
+    "You are continuing research for a lesson. Given the source and the notes gathered so "
+    "far, find the REMAINING gaps and propose up to 3 NEW, more specific web search queries "
+    "to fill them. Never repeat earlier queries. If the notes already cover the topic well, "
+    "return an empty list."
 )
 
 OUTLINE_SYSTEM = (
@@ -70,6 +81,14 @@ MANIM_SYSTEM = (
     "You write a self-contained Manim Community scene named MainScene that animates the beat's "
     "math, plus a spoken narration explaining it. Output only valid Manim Python in manim_code "
     "(no prose, no imports beyond manim). Do not access the network or filesystem."
+)
+
+CRITIQUE_SYSTEM = (
+    "You are Sikto's editor. Review the assembled microlearning lesson for NARRATIVE quality: "
+    "beats that redundantly repeat each other, weak or missing transitions, points that are "
+    "unclear or unsupported, and ordering that hurts comprehension. Report only real, fixable "
+    "problems, each tied to the scene id it affects. If the lesson already flows well, return no "
+    "issues. Do not nitpick wording or visual styling — focus on substance and flow."
 )
 
 
@@ -117,29 +136,46 @@ class BrainNodes:
         llm: StructuredLLM,
         *,
         search: WebSearch | None = None,
+        vision: VisionReviewer | None = None,
         max_repairs: int = 2,
         style: TemplateStyle | None = None,
         mode: str = DEFAULT_MODE,
     ) -> None:
         self._llm = llm
         self._search = search or NullSearch()
+        self._vision = vision
         self._max_repairs = max_repairs
         self._style = style or get_template(None).style
         self._mode = mode
 
     async def research(self, state: BrainState) -> dict[str, Any]:
+        """ReAct research: search → read the snippets → decide whether to dig deeper,
+        for up to `web_search_rounds` rounds. Each round's queries are informed by
+        what the earlier rounds turned up, so the brain fills its own gaps."""
         # No real provider (tests / disabled) → skip the LLM call and the network.
         if isinstance(self._search, NullSearch):
             return {"research": ""}
         settings = get_settings()
+        base_user = _source_prompt(state, self._style, self._mode)
+        gathered: list[Any] = []
+        seen: set[str] = set()
         try:
-            user = _source_prompt(state, self._style, self._mode)
-            plan = await self._llm.generate(RESEARCH_SYSTEM, user, ResearchPlan)
-            results = []
-            for query in plan.queries[:3]:
-                results.extend(await self._search.search(query, k=settings.web_search_results))
-            research = format_research(results, max_chars=settings.web_search_max_chars)
-            logger.info("brain research: %d queries, %d chars", len(plan.queries), len(research))
+            for round_no in range(max(1, settings.web_search_rounds)):
+                if round_no == 0:
+                    system, user = RESEARCH_SYSTEM, base_user
+                else:
+                    notes = format_research(gathered, max_chars=settings.web_search_max_chars)
+                    system = RESEARCH_FOLLOWUP_SYSTEM
+                    user = f"{base_user}\n\nNotes gathered so far:\n{notes or '(none)'}"
+                plan = await self._llm.generate(system, user, ResearchPlan)
+                queries = [q for q in plan.queries[:3] if q.strip() and q.lower() not in seen]
+                if not queries:
+                    break  # the model judged the material sufficient → stop digging
+                for query in queries:
+                    seen.add(query.lower())
+                    gathered.extend(await self._search.search(query, k=settings.web_search_results))
+            research = format_research(gathered, max_chars=settings.web_search_max_chars)
+            logger.info("brain research: %d queries, %d chars", len(seen), len(research))
             return {"research": research}
         except Exception:  # best-effort: planning proceeds without research
             logger.warning("brain research step failed, continuing without it", exc_info=True)
@@ -178,11 +214,66 @@ class BrainNodes:
     async def compose(self, state: BrainState) -> dict[str, Any]:
         outline = state["outline"]
         assert outline is not None
-        scenes = [await self._scene_for(i, state, beat, "") for i, beat in enumerate(outline.beats)]
+        # Beats are independent → compose them concurrently. The shared rate limiter
+        # still paces NVIDIA; concurrency overlaps the latency instead of summing it.
+        scenes = list(
+            await asyncio.gather(
+                *(self._scene_for(i, state, beat, "") for i, beat in enumerate(outline.beats))
+            )
+        )
         document = SceneDocument(title=outline.title, summary=outline.summary, scenes=scenes)
         issues = validate_document(document)
         logger.info("brain compose: %d scenes, %d issues", len(scenes), len(issues))
         return {"document": document, "issues": issues}
+
+    def _critique_prompt(self, document: SceneDocument) -> str:
+        lines = [f"Lesson: {document.title} — {document.summary}", ""]
+        for s in document.scenes:
+            head = next(
+                (e.text for e in s.elements if e.type == ElementType.heading and e.text),
+                s.kind.value,
+            )
+            lines.append(f"[{s.id}] {head}\n  narration: {s.narration.text}")
+        return "\n".join(lines)
+
+    async def critique(self, state: BrainState) -> dict[str, Any]:
+        """Reflexion pass: an editor reviews narrative flow and feeds quality issues
+        into the SAME repair loop the validator uses. Runs once, best-effort — a
+        failed critique leaves the validated document untouched."""
+        document = state["document"]
+        assert document is not None
+        try:
+            review = await self._llm.generate(
+                CRITIQUE_SYSTEM, self._critique_prompt(document), LessonCritique
+            )
+        except Exception:  # best-effort: keep the validated lesson if critique fails
+            logger.warning("brain critique step failed, skipping", exc_info=True)
+            return {}
+        ids = {s.id for s in document.scenes}
+        extra = [f"scene {i.scene_id}: {i.problem}" for i in review.issues if i.scene_id in ids]
+        logger.info("brain critique: %d quality issues", len(extra))
+        return {"issues": [*state["issues"], *extra]}
+
+    async def vision_qa(self, state: BrainState) -> dict[str, Any]:
+        """Render a still per scene and let a vision model flag visual defects the
+        schema can't see. No-op (and no render/vision cost) unless a reviewer is
+        configured; best-effort, and merges defects into the repair loop's issues."""
+        if self._vision is None:
+            return {}
+        document = state["document"]
+        assert document is not None
+        try:
+            found = await self._vision.review(document)
+        except Exception:  # best-effort: a failed visual pass never blocks the lesson
+            logger.warning("brain vision QA step failed, skipping", exc_info=True)
+            return {}
+        ids = {s.id for s in document.scenes}
+        extra = [
+            msg for msg in found
+            if msg.split(":", 1)[0].removeprefix("scene ").strip() in ids
+        ]
+        logger.info("brain vision QA: %d visual issues", len(extra))
+        return {"issues": [*state["issues"], *extra]}
 
     async def repair(self, state: BrainState) -> dict[str, Any]:
         outline = state["outline"]
@@ -194,12 +285,18 @@ class BrainNodes:
             if issue.startswith("scene ")
         }
         scenes = list(document.scenes)
-        for index, beat in enumerate(outline.beats):
-            sid = f"s{index}"
-            if sid not in bad:
-                continue
-            feedback = " ".join(i for i in state["issues"] if i.startswith(f"scene {sid}"))
-            scenes[index] = await self._scene_for(index, state, beat, feedback)
+        todo = [(i, beat) for i, beat in enumerate(outline.beats) if f"s{i}" in bad]
+        fixes = await asyncio.gather(
+            *(
+                self._scene_for(
+                    i, state, beat,
+                    " ".join(msg for msg in state["issues"] if msg.startswith(f"scene s{i}")),
+                )
+                for i, beat in todo
+            )
+        )
+        for (index, _), scene in zip(todo, fixes, strict=True):
+            scenes[index] = scene
         repaired = document.model_copy(update={"scenes": scenes})
         issues = validate_document(repaired)
         logger.info("brain repair #%d: %d issues remain", state["repairs"] + 1, len(issues))

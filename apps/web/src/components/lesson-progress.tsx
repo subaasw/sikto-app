@@ -26,6 +26,11 @@ function fmtElapsed(seconds: number): string {
  * Live progress for a generating lesson. Polls the job; when it finishes it
  * refreshes the route so the server component swaps in the finished lesson —
  * no manual "view lesson" hop. Renders the failure state inline too.
+ *
+ * ponytail: polls instead of SSE — the browser reaches the API through the
+ * Next.js /api rewrite, which buffers a long-lived text/event-stream so events
+ * never arrive. Discrete GETs proxy fine. Switch to SSE only if the browser
+ * talks to the API origin directly.
  */
 export function LessonProgress({ jobId, initialJob }: { jobId: string; initialJob?: Job | null }) {
   const router = useRouter();
@@ -177,7 +182,7 @@ export function LessonProgress({ jobId, initialJob }: { jobId: string; initialJo
         <p className="text-sm text-muted-foreground">
           {done
             ? 'Opening your lesson…'
-            : 'This usually takes a minute or two — you can keep this tab open.'}
+            : 'This may take a while — you can keep this tab open.'}
         </p>
       )}
     </div>

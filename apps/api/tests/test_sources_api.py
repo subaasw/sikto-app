@@ -28,6 +28,21 @@ async def test_post_sources_creates_queued_job():
         assert status.json()["status"] == "queued"
 
 
+async def test_post_sources_accepts_multiple_inputs():
+    async with await _client() as client:
+        resp = await client.post(
+            "/sources",
+            json={"type": "mixed", "inputs": ["https://a.com", "https://youtu.be/x", "notes"]},
+        )
+        assert resp.status_code == 201
+
+
+async def test_post_sources_rejects_empty():
+    async with await _client() as client:
+        resp = await client.post("/sources", json={"type": "mixed", "inputs": ["", "  "]})
+        assert resp.status_code == 422
+
+
 @needs_services
 async def test_job_reaches_done_after_worker_runs():
     async with await _client() as client:

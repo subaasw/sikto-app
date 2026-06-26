@@ -2,28 +2,22 @@
 
 import { useRouter } from 'next/navigation';
 import {
-  FileText,
   GraduationCap,
   Link2,
   Loader2,
   Megaphone,
   Mic,
   PenLine,
+  Plus,
   Presentation,
   Sparkles,
   Video,
-  Youtube,
+  X,
 } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl, type SegmentOption } from '@/components/ui/segmented-control';
-import { createSource, type SourceType } from '@/lib/api';
-
-const typeOptions: SegmentOption<SourceType>[] = [
-  { value: 'text', label: 'Paste text', icon: FileText },
-  { value: 'url', label: 'Article URL', icon: Link2 },
-  { value: 'youtube', label: 'YouTube', icon: Youtube },
-];
+import { createSource } from '@/lib/api';
 
 const templateOptions: SegmentOption<string>[] = [
   { value: 'explainer', label: 'Explainer', icon: Presentation },
@@ -42,30 +36,36 @@ const voiceOptions: SegmentOption<string>[] = [
   { value: 'female', label: 'Female', icon: Mic },
 ];
 
-const placeholders: Record<SourceType, string> = {
-  text: 'Paste the text or notes you want to turn into a lesson…',
-  url: 'https://example.com/article',
-  youtube: 'https://www.youtube.com/watch?v=…',
-};
-
 export function SourceInput() {
   const router = useRouter();
-  const [type, setType] = useState<SourceType>('text');
+  const [links, setLinks] = useState<string[]>(['']);
+  const [text, setText] = useState('');
   const [template, setTemplate] = useState('explainer');
   const [mode, setMode] = useState('auto');
   const [voice, setVoice] = useState('male');
-  const [value, setValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const inputs = [...links.map((l) => l.trim()), text.trim()].filter(Boolean);
+  const multi = inputs.length > 1;
+
+  function setLink(i: number, value: string) {
+    setLinks((prev) => prev.map((l, idx) => (idx === i ? value : l)));
+  }
+  function addLink() {
+    setLinks((prev) => [...prev, '']);
+  }
+  function removeLink(i: number) {
+    setLinks((prev) => (prev.length === 1 ? [''] : prev.filter((_, idx) => idx !== i)));
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const input = value.trim();
-    if (!input || submitting) return;
+    if (inputs.length === 0 || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
-      const { job_id } = await createSource({ type, input, template, mode, voice });
+      const { job_id } = await createSource({ type: 'mixed', inputs, template, mode, voice });
       router.push(`/lessons/${job_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -78,32 +78,53 @@ export function SourceInput() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <SegmentedControl
-        options={typeOptions}
-        value={type}
-        onChange={(next) => {
-          setType(next);
-          setValue('');
-        }}
-      />
+      <div className="flex flex-col gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Links &amp; videos
+        </span>
+        {links.map((link, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <Link2 className="size-4 shrink-0 text-muted-foreground" />
+            <input
+              type="url"
+              value={link}
+              onChange={(e) => setLink(i, e.target.value)}
+              placeholder="https://example.com/article or https://youtu.be/…"
+              className={fieldClass}
+            />
+            <button
+              type="button"
+              onClick={() => removeLink(i)}
+              aria-label="Remove link"
+              className="flex size-9 shrink-0 items-center justify-center border-2 border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
+              disabled={links.length === 1 && !link}
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={addLink}
+          className="flex w-fit items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <Plus className="size-3.5" />
+          Add another link
+        </button>
+      </div>
 
-      {type === 'text' ? (
+      <div className="flex flex-col gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Or paste text
+        </span>
         <textarea
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          placeholder={placeholders[type]}
-          rows={8}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Paste notes or an article to include…"
+          rows={5}
           className={`${fieldClass} resize-y`}
         />
-      ) : (
-        <input
-          type="url"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          placeholder={placeholders[type]}
-          className={fieldClass}
-        />
-      )}
+      </div>
 
       <div className="flex flex-col gap-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -133,8 +154,12 @@ export function SourceInput() {
       {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
 
       <div className="flex items-center justify-between gap-4">
-        <p className="text-xs text-muted-foreground">One source → one narrated microlearning lesson.</p>
-        <Button type="submit" size="lg" disabled={!value.trim() || submitting}>
+        <p className="text-xs text-muted-foreground">
+          {multi
+            ? `${inputs.length} sources → one combined lesson.`
+            : 'Add links, videos, or text → one narrated lesson.'}
+        </p>
+        <Button type="submit" size="lg" disabled={inputs.length === 0 || submitting}>
           {submitting ? (
             <>
               <Loader2 className="size-4 animate-spin" />

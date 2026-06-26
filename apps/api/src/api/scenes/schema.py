@@ -132,6 +132,40 @@ class ResearchPlan(BaseModel):
     )
 
 
+class CritiqueIssue(BaseModel):
+    scene_id: str = Field(description="Id of the scene with the problem, e.g. 's2'.")
+    problem: str = Field(description="One concrete, fixable flaw in this scene.")
+
+
+class LessonCritique(BaseModel):
+    """An editor's review of the assembled lesson for narrative quality."""
+
+    issues: list[CritiqueIssue] = Field(
+        default_factory=list,
+        description="Real, fixable narrative problems. Empty when the lesson flows well.",
+    )
+
+
+# Layout archetypes the LLM art-director may assign to a plain text slide. Mirrors
+# the layouts in scenes/assemble.py; 'auto' defers to the rule-based director.
+ArchetypeName = Literal["presenter", "poster", "hero", "icon_grid", "plain", "auto"]
+
+
+class SceneArt(BaseModel):
+    scene_id: str = Field(description="Id of the scene to art-direct, e.g. 's0'.")
+    archetype: ArchetypeName = Field(default="auto", description="The layout to use for this slide.")
+    visual_query: str | None = Field(
+        default=None,
+        description="2-4 word concrete subject to illustrate (an object/scene), or null for text-only.",
+    )
+
+
+class ArtDirection(BaseModel):
+    """The art-director's per-scene layout plan for a lesson's plain slides."""
+
+    scenes: list[SceneArt] = Field(default_factory=list)
+
+
 class OutlineBeat(BaseModel):
     title: str
     summary: str

@@ -22,6 +22,35 @@ Crawler = Callable[[str], Awaitable[CrawlResult]]
 TranscriptFetcher = Callable[[str], Awaitable[str]]
 
 
+# Sources are joined into the single `raw_input` column with this record separator
+# (ASCII RS, U+001E) — safe because pasted text never contains it, so a text blob
+# with newlines stays one source.
+SOURCE_SEP = "\x1e"
+
+
+def split_sources(raw_input: str) -> list[str]:
+    """One create-request may carry several sources (links/videos/text). Split the
+    stored blob back into the individual inputs; a single-source blob returns [it]."""
+    parts = [p.strip() for p in raw_input.split(SOURCE_SEP)]
+    return [p for p in parts if p] or [raw_input]
+
+
+def combine_documents(docs: list[Document]) -> Document:
+    """Merge several loaded sources into one document the brain treats as a single
+    body of material. Titles are kept as section headers so provenance survives."""
+    if len(docs) == 1:
+        return docs[0]
+    sections = [
+        f"# {d.title}\n\n{d.text}" if d.title else d.text for d in docs if d.text.strip()
+    ]
+    return Document(
+        text="\n\n---\n\n".join(sections),
+        title=next((d.title for d in docs if d.title), None),
+        type="mixed",
+        meta={"sources": [d.meta for d in docs]},
+    )
+
+
 def is_url(value: str) -> bool:
     parsed = urlparse(value.strip())
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)

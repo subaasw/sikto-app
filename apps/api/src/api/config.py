@@ -68,6 +68,15 @@ class Settings(BaseSettings):
     web_search_provider: Literal["duckduckgo"] = "duckduckgo"
     web_search_results: int = 5  # snippets fetched per query
     web_search_max_chars: int = 2000  # cap on aggregated research fed to the brain
+    web_search_rounds: int = 2  # ReAct research: max search→read→refine rounds
+    # Vision QA: render a still per scene and have a vision model flag layout bugs
+    # (overflow, crowding, low contrast) into the repair loop. Off by default — it
+    # needs a vision-capable model id and adds a render+vision call per scene.
+    vision_qa_enabled: bool = False
+    # Multimodal model for vision QA, served by the agent provider (NVIDIA by
+    # default, so it shares NVIDIA's rate limiter). Kimi K2.6 is multimodal on
+    # NVIDIA's catalog. Override per-deployment if you key a different provider.
+    vision_model: str = "moonshotai/kimi-k2.6"
 
     # logging
     log_level: str = "INFO"
@@ -79,8 +88,21 @@ class Settings(BaseSettings):
     # whichever keys you have — nothing else to configure.
     nvidia_api_key: str = ""
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
-    nvidia_model: str = "deepseek-ai/deepseek-v4-pro"
+    # Lead ("most advanced") model. The cascade in api.agent.model_switch tries it
+    # first, then nvidia_fallback_models, skipping any on cooldown. Override either
+    # via env (NVIDIA_MODEL / NVIDIA_FALLBACK_MODELS as JSON).
+    # NB: deepseek-v4-pro is excluded — it reliably hangs (~30s timeout) on the free
+    # tier and just wastes the lead slot. Prepend it via NVIDIA_MODEL if it improves.
+    nvidia_model: str = "deepseek-ai/deepseek-v4-flash"  # fast advanced, very reliable
+    nvidia_fallback_models: list[str] = [
+        "meta/llama-3.3-70b-instruct",  # strong general-purpose
+        "meta/llama-3.1-8b-instruct",  # light, almost always available
+    ]
     nvidia_rpm: int = 40  # free-tier requests/minute; the brain throttles below it
+    # Per-request LLM timeout. The OpenAI client defaults to 600s, so a stuck model
+    # (deepseek-v4-pro hangs on the free tier) would freeze chat/lessons forever;
+    # cap it so the switcher fails over to the next model instead.
+    llm_timeout_seconds: float = 30.0
     deepseek_api_key: str = ""
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-chat"

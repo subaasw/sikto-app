@@ -144,18 +144,15 @@ async def _lookup(
     by_specificity = sorted(keywords, key=len, reverse=True)
     terms = list(dict.fromkeys([" ".join(keywords[:2]), *by_specificity]))
 
-    # 2) Marketing: a real photo of the concept (Openverse, keyless). Trust the
-    # search ranking — photo titles are free-text, so the icon-name relevance
-    # filter doesn't apply.
+    # 2) Marketing: a real photo of the concept (Openverse, keyless). Openverse
+    # free-text search is noisy, so apply the SAME word-stem relevance check used
+    # for icons against the photo title — an unrelated top hit is worse than no
+    # photo (the caller then falls back to a clean typographic poster).
     if prefer_photo:
         for term in terms:
-            try:
-                results = await search_images(term, 6)
-            except Exception:
-                logger.warning("photo search failed for %r", term, exc_info=True)
-                results = []
-            if results:
-                return ResolvedAsset(url=results[0].url, kind="photo", source="openverse")
+            hit = await _first_relevant(search_images, term, keywords)
+            if hit is not None:
+                return ResolvedAsset(url=hit.url, kind="photo", source="openverse")
 
     # 3) Professional full-color illustration (validated relevance; not recolored).
     for term in terms:

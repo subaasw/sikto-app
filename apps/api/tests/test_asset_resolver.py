@@ -93,12 +93,18 @@ async def test_none_when_nothing_matches(monkeypatch):
     assert await resolver.resolve_asset(None, "quantum entanglement", color=None) is None
 
 
-async def test_prefer_photo_returns_top_openverse_photo(monkeypatch):
-    # Marketing: the top real photo wins — even with a free-text title, since the
-    # icon-name relevance filter doesn't apply to photos.
+async def test_prefer_photo_returns_relevant_openverse_photo(monkeypatch):
+    # Marketing: the top photo whose title shares a word-stem with the query wins.
     _patch(monkeypatch, images=[_photo("a rocket at dawn")], icons=[_icon("rocket")])
     got = await resolver.resolve_asset(None, "rocket launch", prefer_photo=True)
     assert got is not None and got.kind == "photo" and got.source == "openverse"
+
+
+async def test_prefer_photo_rejects_irrelevant_photo(monkeypatch):
+    # A top hit unrelated to the query (noisy Openverse search) is rejected →
+    # caller falls back to a typographic poster rather than showing a random image.
+    _patch(monkeypatch, images=[_photo("vintage kitchen sink")], illustrations=[], icons=[])
+    assert await resolver.resolve_asset(None, "rocket launch", prefer_photo=True) is None
 
 
 async def test_prefer_photo_never_falls_back_to_mono_icon(monkeypatch):

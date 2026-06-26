@@ -1,13 +1,35 @@
 import pytest
 
+from api.engines.protocols import Document
 from api.ingestion.loaders import (
+    SOURCE_SEP,
     CrawlResult,
     TextLoader,
     YouTubeLoader,
+    combine_documents,
     is_url,
     is_youtube_url,
+    split_sources,
     youtube_video_id,
 )
+
+
+def test_split_sources_keeps_multiline_text_as_one():
+    # A pasted blob with newlines stays a single source; only SOURCE_SEP splits.
+    blob = SOURCE_SEP.join(["https://a.com", "line1\nline2"])
+    assert split_sources(blob) == ["https://a.com", "line1\nline2"]
+    assert split_sources("just one") == ["just one"]
+
+
+def test_combine_documents_merges_with_titles():
+    docs = [
+        Document(text="alpha", title="A", type="url", meta={}),
+        Document(text="beta", title=None, type="text", meta={}),
+    ]
+    combined = combine_documents(docs)
+    assert combined.type == "mixed"
+    assert "# A" in combined.text and "alpha" in combined.text and "beta" in combined.text
+    assert combine_documents(docs[:1]).type == "url"  # single source passes through
 
 
 async def test_text_loader_passes_through_pasted_text():

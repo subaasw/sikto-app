@@ -129,6 +129,7 @@ async def create_lesson_from_scene_document(
     job_id: uuid.UUID,
     source_id: uuid.UUID,
     document: SceneDocument,
+    quiz: list[dict] | None = None,
 ) -> Lesson:
     lesson = Lesson(
         job_id=job_id,
@@ -136,7 +137,7 @@ async def create_lesson_from_scene_document(
         title=document.title,
         summary=document.summary,
         key_points=_key_points_from_document(document),
-        quiz=[],
+        quiz=quiz or [],
         script=document.model_dump(mode="json"),
         video_url=None,
     )

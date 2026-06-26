@@ -4,12 +4,52 @@ eligible slides gain a graphic; diagrams are left untouched."""
 from api.media.resolver import ResolvedAsset
 from api.scenes import art_director
 from api.scenes.assemble import diagram_scene, slide_scene
-from api.scenes.schema import DiagramDraft, ElementType, SceneDocument, SlideDraft
+from api.scenes.schema import (
+    ArtDirection,
+    DiagramDraft,
+    ElementType,
+    SceneArt,
+    SceneDocument,
+    SlideDraft,
+)
 from api.scenes.templates import get_template
 
 
 def _doc(*scenes) -> SceneDocument:
     return SceneDocument(title="t", summary="s", scenes=list(scenes))
+
+
+class _FakeArtLLM:
+    def __init__(self, plan: ArtDirection) -> None:
+        self._plan = plan
+
+    async def generate(self, system, user, schema):
+        return self._plan
+
+
+async def test_llm_director_overrides_rules(monkeypatch):
+    """With an LLM plan, slides take the chosen archetype — not the heuristic one.
+    Rules alone would make s0 a presenter and s1 a hero; the plan forces hero+poster."""
+
+    async def fake_resolve(session, query, *, color=None, registry=None, prefer_photo=False):
+        return ResolvedAsset(url="https://img/x.jpg", kind="photo", source="openverse")
+
+    monkeypatch.setattr(art_director, "resolve_asset", fake_resolve)
+    s0 = slide_scene(0, SlideDraft(heading="A", bullets=["x"], narration="n"))
+    s1 = slide_scene(1, SlideDraft(heading="B", bullets=["y"], narration="n"))
+    plan = ArtDirection(
+        scenes=[
+            SceneArt(scene_id="s0", archetype="hero", visual_query="atom"),
+            SceneArt(scene_id="s1", archetype="poster", visual_query="rocket"),
+        ]
+    )
+    out = await art_director.art_direct(
+        None, _doc(s0, s1), get_template("explainer"), llm=_FakeArtLLM(plan)
+    )
+    t0 = [e.type for e in out.scenes[0].elements]
+    assert ElementType.image in t0 and ElementType.character not in t0  # hero, not presenter
+    t1 = [e.type for e in out.scenes[1].elements]
+    assert ElementType.image in t1 and ElementType.bullets not in t1  # poster, not hero
 
 
 def _seed():
