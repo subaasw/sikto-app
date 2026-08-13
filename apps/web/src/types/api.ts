@@ -46,6 +46,23 @@ export interface ApiLesson {
   quiz: ApiQuizItem[];
 }
 
+export interface ApiCourseModule {
+  order: number;
+  title: string;
+  summary: string;
+  job_id: string | null;
+  status: string; // 'planned' | job status | 'done' | 'failed'
+  locked: boolean;
+}
+
+export interface ApiCourse {
+  id: string;
+  job_id: string;
+  title: string;
+  summary: string;
+  modules: ApiCourseModule[];
+}
+
 export interface LessonSummary {
   job_id: string;
   title: string;

@@ -1,5 +1,6 @@
 import { apiBase } from '@/lib/config';
 import type {
+  ApiCourse,
   ApiLesson,
   ChatMessage,
   CreateSourceInput,
@@ -44,6 +45,14 @@ export function getJob(id: string): Promise<Job> {
 
 export function getLesson(jobId: string): Promise<ApiLesson> {
   return request(`/lessons/${jobId}`, { cache: 'no-store' });
+}
+
+export function getCourseByJob(jobId: string): Promise<ApiCourse> {
+  return request(`/courses/by-job/${jobId}`, { cache: 'no-store' });
+}
+
+export function generateModule(courseId: string, order: number): Promise<{ job_id: string }> {
+  return request(`/courses/${courseId}/modules/${order}/generate`, { method: 'POST' });
 }
 
 export function listLessons(): Promise<LessonSummary[]> {
@@ -102,6 +111,10 @@ export function getSceneDocument(jobId: string): Promise<import('@/lib/scene/typ
 
 export function getLessonAudio(jobId: string): Promise<SceneAudioTrack[]> {
   return request(`/lessons/${jobId}/audio`, { cache: 'no-store' });
+}
+
+export function getLessonManim(jobId: string): Promise<{ scene_id: string; url: string }[]> {
+  return request(`/lessons/${jobId}/manim`, { cache: 'no-store' });
 }
 
 // Streams the assistant reply as plain-text token deltas for incremental render.

@@ -1,13 +1,16 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { CourseView } from '@/components/course-view';
 import { LessonProgress } from '@/components/lesson-progress';
 import { LessonView, type LessonData } from '@/components/lesson-view';
 import { LessonStage } from '@/components/player/lesson-stage';
 import { Button } from '@/components/ui/button';
 import {
+  getCourseByJob,
   getJob,
   getLesson,
   getLessonAudio,
+  getLessonManim,
   getSceneDocument,
   type Job,
   type SceneAudioTrack,
@@ -43,6 +46,18 @@ export default async function LessonPage({ params }: { params: Promise<{ id: str
     );
   }
 
+  // A `course`-mode job plans modules rather than one lesson — show the plan.
+  try {
+    const course = await getCourseByJob(id);
+    return (
+      <Shell>
+        <CourseView course={course} />
+      </Shell>
+    );
+  } catch {
+    // not a course job → fall through to the single-lesson view
+  }
+
   const lesson = await loadLesson(id);
   if (!lesson) {
     return (
@@ -66,11 +81,20 @@ export default async function LessonPage({ params }: { params: Promise<{ id: str
     audio = [];
   }
 
+  let manim: { scene_id: string; url: string }[] = [];
+  try {
+    manim = await getLessonManim(id);
+  } catch {
+    manim = [];
+  }
+
   return (
     <Shell>
       <LessonView
         lesson={lesson}
-        player={document ? <LessonStage document={document} audio={audio} /> : undefined}
+        player={
+          document ? <LessonStage document={document} audio={audio} manim={manim} /> : undefined
+        }
       />
     </Shell>
   );
