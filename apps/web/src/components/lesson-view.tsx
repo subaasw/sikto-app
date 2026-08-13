@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, FileText, Play, ScrollText, Sparkles } from 'lucide-react';
+import { Check, FileText, Play, ScrollText, Sparkles, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { VideoPlayer } from '@/components/player/video-player';
 import { Badge } from '@/components/ui/badge';
@@ -123,7 +123,11 @@ function VideoPlaceholder() {
 }
 
 function QuizCard({ item, index }: { item: QuizItem; index: number }) {
-  const [revealed, setRevealed] = useState(false);
+  // Per-question self-check: pick a choice → instant right/wrong + explanation.
+  const [selected, setSelected] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState(false); // choices-less fallback
+  const answered = selected !== null;
+  const correct = selected === item.answer;
 
   return (
     <Card>
@@ -135,34 +139,58 @@ function QuizCard({ item, index }: { item: QuizItem; index: number }) {
         {item.choices ? (
           <ul className="flex flex-col gap-2">
             {item.choices.map((choice) => {
-              const isAnswer = revealed && choice === item.answer;
+              const isAnswer = choice === item.answer;
+              const isChosen = choice === selected;
+              let cls = 'border-border hover:bg-muted';
+              if (answered && isAnswer)
+                cls =
+                  'border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
+              else if (answered && isChosen)
+                cls = 'border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300';
+              else if (answered) cls = 'border-border opacity-60';
               return (
-                <li
-                  key={choice}
-                  className={
-                    isAnswer
-                      ? 'rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300'
-                      : 'rounded-lg border border-border px-3 py-2 text-sm'
-                  }
-                >
-                  {choice}
+                <li key={choice}>
+                  <button
+                    type="button"
+                    disabled={answered}
+                    onClick={() => setSelected(choice)}
+                    className={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors disabled:cursor-default ${cls}`}
+                  >
+                    <span>{choice}</span>
+                    {answered && isAnswer ? <Check className="size-4 shrink-0" /> : null}
+                    {answered && isChosen && !isAnswer ? <X className="size-4 shrink-0" /> : null}
+                  </button>
                 </li>
               );
             })}
           </ul>
         ) : null}
 
-        {revealed ? (
+        {item.choices && answered ? (
           <div className="rounded-lg bg-muted px-3 py-2 text-sm">
-            <span className="font-medium">Answer: </span>
-            {item.answer}
-            <p className="mt-1 text-muted-foreground">{item.explanation}</p>
+            <span className="font-medium">{correct ? 'Correct!' : 'Not quite.'} </span>
+            {item.explanation}
           </div>
-        ) : (
-          <Button variant="secondary" size="sm" className="self-start" onClick={() => setRevealed(true)}>
-            Reveal answer
-          </Button>
-        )}
+        ) : null}
+
+        {!item.choices ? (
+          revealed ? (
+            <div className="rounded-lg bg-muted px-3 py-2 text-sm">
+              <span className="font-medium">Answer: </span>
+              {item.answer}
+              <p className="mt-1 text-muted-foreground">{item.explanation}</p>
+            </div>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="self-start"
+              onClick={() => setRevealed(true)}
+            >
+              Reveal answer
+            </Button>
+          )
+        ) : null}
       </CardContent>
     </Card>
   );

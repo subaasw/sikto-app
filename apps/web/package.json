@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@base-ui-components/react": "1.0.0-rc.0",
+    "@remotion/player": "^4.0.484",
+    "@sikto/motion-kit": "workspace:*",
     "@sikto/scene-kit": "workspace:*",
     "clsx": "^2.1.1",
     "geist": "^1.7.2",
@@ -20,6 +22,9 @@
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "remotion": "^4.0.484",
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {

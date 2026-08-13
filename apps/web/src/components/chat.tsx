@@ -1,29 +1,15 @@
 'use client';
 
-import Link from 'next/link';
 import { Loader2, Send, Square } from 'lucide-react';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { streamChat, type ChatMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { Markdown } from './markdown';
 
 type Message = ChatMessage & { id: string };
 
 let counter = 0;
 const nextId = () => `m${++counter}`;
-
-// Make the agent's /lessons/<id> action links clickable instead of plain text.
-function renderContent(text: string) {
-  const parts = text.split(/(\/lessons\/[\w-]+)/g);
-  return parts.map((part, i) =>
-    /^\/lessons\/[\w-]+$/.test(part) ? (
-      <Link key={i} href={part} className="underline underline-offset-2">
-        {part}
-      </Link>
-    ) : (
-      <Fragment key={i}>{part}</Fragment>
-    ),
-  );
-}
 
 export function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -107,7 +93,11 @@ export function Chat() {
             )}
           >
             {m.content ? (
-              <span className="whitespace-pre-wrap">{renderContent(m.content)}</span>
+              m.role === 'user' ? (
+                <span className="whitespace-pre-wrap">{m.content}</span>
+              ) : (
+                <Markdown content={m.content} />
+              )
             ) : (
               <Loader2 className="size-4 animate-spin text-muted-foreground" />
             )}

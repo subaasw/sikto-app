@@ -13,8 +13,17 @@ import {
   VolumeX,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+} from 'react';
 import { Captions, SceneStage } from '@sikto/scene-kit';
+import { MotionScenePlayer } from './motion-scene-player';
 import type { SceneAudioTrack } from '@/lib/api';
 import { ASPECT_RATIO_CSS, sceneDurationMs, type Scene, type SceneDocument } from '@/lib/scene/types';
 import { cn } from '@/lib/utils';
@@ -59,13 +68,19 @@ const speechSupported = typeof window !== 'undefined' && 'speechSynthesis' in wi
 export function LessonStage({
   document,
   audio = [],
+  manim = [],
 }: {
   document: SceneDocument;
   audio?: SceneAudioTrack[];
+  manim?: { scene_id: string; url: string }[];
 }) {
   const audioMap = useMemo(
     () => Object.fromEntries(audio.map((a) => [a.scene_id, a])) as Record<string, SceneAudioTrack>,
     [audio],
+  );
+  const manimMap = useMemo(
+    () => Object.fromEntries(manim.map((m) => [m.scene_id, m.url])) as Record<string, string>,
+    [manim],
   );
   const hasNarration = audio.length > 0;
 
@@ -106,6 +121,17 @@ export function LessonStage({
   const [classMode, setClassMode] = useState(false);
   const [pos, setPos] = useState({ scene: 0, reveal: 1 });
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Host video for live-player Manim clips. Muted (narration is the separate
+  // audio track) and driven by the player clock via effects below — not looped,
+  // so it holds its last frame when the clip is shorter than the scene.
+  const PlayerVideo = useCallback(
+    ({ src, style }: { src: string; style?: CSSProperties }) => (
+      <video ref={videoRef} src={src} style={style} muted playsInline />
+    ),
+    [],
+  );
 
   const timeline = locate(offsets, total, playheadMs);
   const activeIndex = classMode ? pos.scene : timeline.index;
@@ -177,6 +203,26 @@ export function LessonStage({
     if (playing) void el.play().catch(() => {});
     else el.pause();
   }, [playing, currentAudioUrl, classMode]);
+
+  // Align the current scene's Manim clip to the playhead on scene change / scrub,
+  // then let it play naturally under the narration (mirrors the audio effect).
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    const target = classMode ? 0 : localMs / 1000;
+    if (Math.abs(el.currentTime - target) > 0.35) el.currentTime = target;
+    // Class mode plays each scene's clip from the start when it's opened.
+    if (playing || classMode) void el.play().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex, syncToken, classMode]);
+
+  // Mirror the play/pause state onto the video element.
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    if (playing) void el.play().catch(() => {});
+    else el.pause();
+  }, [playing]);
 
   // Live text-to-voice (timeline mode): browser speech reads the current scene.
   useEffect(() => {
@@ -314,15 +360,21 @@ export function LessonStage({
       >
         {/* Hard cut between scenes (no crossfade) — matches the MP4. */}
         <div key={scene.id} className="absolute inset-0">
-          <SceneStage
-            scene={scene}
-            theme={document.theme}
-            progressMs={localMs}
-            sceneDurationMs={durations[activeIndex]}
-            revealCount={classMode ? pos.reveal : undefined}
-            words={currentWords}
-            profile={document.profile}
-          />
+          {scene.kind === 'motion' && scene.motion ? (
+            <MotionScenePlayer scene={scene} progressMs={localMs} durationMs={durations[activeIndex]} />
+          ) : (
+            <SceneStage
+              scene={scene}
+              theme={document.theme}
+              progressMs={localMs}
+              sceneDurationMs={durations[activeIndex]}
+              revealCount={classMode ? pos.reveal : undefined}
+              words={currentWords}
+              profile={document.profile}
+              Video={PlayerVideo}
+              manimUrl={manimMap[scene.id]}
+            />
+          )}
         </div>
 
         {classMode ? (
