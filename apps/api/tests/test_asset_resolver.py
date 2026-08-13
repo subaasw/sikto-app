@@ -87,6 +87,17 @@ async def test_icon_fallback_when_no_illustration(monkeypatch):
     assert got is not None and got.kind == "icon" and "color=%2384cc16" in got.url
 
 
+async def test_allow_icon_false_skips_the_mono_icon_fallback(monkeypatch):
+    # A relevant mono icon exists, but the subject wasn't flagged as a symbol
+    # (visual_kind != "icon"), so the resolver stays text-only rather than risk a
+    # wrong-sense literal match ("French Revolution" -> french-fries).
+    _patch(monkeypatch, illustrations=[], icons=[_icon("revolution")])
+    assert await resolver.resolve_asset(None, "french revolution", allow_icon=False) is None
+    # Same query WITH allow_icon (default) still takes the icon.
+    got = await resolver.resolve_asset(None, "french revolution", color="#84cc16")
+    assert got is not None and got.kind == "icon"
+
+
 async def test_none_when_nothing_matches(monkeypatch):
     _patch(monkeypatch)
     assert await resolver.resolve_asset(None, "the of to", color=None) is None  # all stopwords
@@ -111,6 +122,38 @@ async def test_prefer_photo_never_falls_back_to_mono_icon(monkeypatch):
     # No photo, no illustration → marketing gets nothing rather than a cheap icon.
     _patch(monkeypatch, images=[], illustrations=[], icons=[_icon("rocket")])
     assert await resolver.resolve_asset(None, "rocket launch", prefer_photo=True) is None
+
+
+async def test_resolved_illustration_is_cached_for_cross_lesson_reuse(monkeypatch):
+    # A freshly-resolved illustration is persisted to the library (tagged with the
+    # concept keywords) so a later lesson resolves the SAME vetted asset.
+    cached: list[dict] = []
+
+    async def fake_cache(session, *, kind, title, url, tags, source):
+        cached.append({"kind": kind, "url": url, "tags": tags})
+
+    _patch(monkeypatch, illustrations=[_ill("brain")])
+    monkeypatch.setattr(resolver, "cache_resolved_asset", fake_cache)
+    await resolver.resolve_asset(object(), "the brain learns", color="#84cc16")
+    assert cached and cached[0]["kind"] == "illustration" and "brain" in cached[0]["tags"]
+
+
+async def test_no_session_means_no_caching(monkeypatch):
+    cached: list = []
+    _patch(monkeypatch, illustrations=[_ill("brain")])
+    monkeypatch.setattr(resolver, "cache_resolved_asset", lambda *a, **k: cached.append(1))
+    await resolver.resolve_asset(None, "the brain", color="#84cc16")  # session None
+    assert not cached
+
+
+async def test_icons_are_not_cached(monkeypatch):
+    # Mono icons are theme-recolored at use-time → caching a colour-baked URL would
+    # be wrong under another theme, so the fallback icon is never persisted.
+    cached: list = []
+    _patch(monkeypatch, illustrations=[], icons=[_icon("brain")])
+    monkeypatch.setattr(resolver, "cache_resolved_asset", lambda *a, **k: cached.append(1))
+    got = await resolver.resolve_asset(object(), "the brain", color="#84cc16")
+    assert got is not None and got.kind == "icon" and not cached
 
 
 async def test_registry_reuses_the_same_asset(monkeypatch):

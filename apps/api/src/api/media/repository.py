@@ -64,6 +64,27 @@ async def search_media_assets(
     return hits[:limit]
 
 
+async def cache_resolved_asset(
+    session: AsyncSession,
+    *,
+    kind: str,
+    title: str,
+    url: str,
+    tags: list[str],
+    source: str,
+) -> None:
+    """Persist a freshly-resolved online illustration/photo into the library so the
+    same concept resolves to the SAME vetted asset on later lessons (cross-lesson
+    consistency + reuse — the illustration-registry idea, no new table needed since
+    ``search_media_assets`` already wins in the resolver). Dedup by url. Flushes
+    (not commits) so it rides the surrounding pipeline transaction."""
+    existing = await session.execute(select(col(MediaAsset.id)).where(col(MediaAsset.url) == url).limit(1))
+    if existing.first() is not None:
+        return
+    session.add(MediaAsset(kind=kind, title=title, url=url, tags=tags, source=source, license="provider"))
+    await session.flush()
+
+
 async def get_media_asset(session: AsyncSession, asset_id: uuid.UUID) -> MediaAsset | None:
     return await session.get(MediaAsset, asset_id)
 
