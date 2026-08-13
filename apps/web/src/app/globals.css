@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* repoint dark: from prefers-color-scheme to data-theme so it follows the toggle */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
@@ -19,7 +22,38 @@
 }
 
 :root {
-  /* dark only — green-black + bright lime. Forced regardless of OS setting. */
+  /* light — default palette, off-white + deep lime accent */
+  color-scheme: light;
+  --background: #f6f7f1;
+  --surface: #ffffff;
+  --foreground: #14170e;
+  --muted: #ecefe3;
+  --muted-foreground: #5c6650;
+  --border: #d3d8c4;
+  --border-soft: #e2e6d6;
+  --primary: #5c9a1b;
+  --primary-foreground: #f6f7f1;
+  --ring: #5c9a1b;
+}
+
+/* dark — green-black + bright lime, on OS preference or explicit data-theme="dark" */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --background: #0c0e08;
+    --surface: #14170e;
+    --foreground: #edf2e2;
+    --muted: #1b1f12;
+    --muted-foreground: #9aa285;
+    --border: #2f3720;
+    --border-soft: #242a18;
+    --primary: #a3e635;
+    --primary-foreground: #0c0e08;
+    --ring: #a3e635;
+  }
+}
+
+:root[data-theme='dark'] {
   color-scheme: dark;
   --background: #0c0e08;
   --surface: #14170e;

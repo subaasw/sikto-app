@@ -16,6 +16,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { PixelLogo } from '@/components/pixel-logo';
 import { useAuth } from '@/components/auth/auth-provider';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const nav: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/', label: 'Create', icon: Sparkles },
@@ -38,12 +39,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col self-start overflow-y-auto border-r-2 border-border bg-surface px-3 py-4 sm:flex">
-        <Link href="/" className="mb-8 flex items-center gap-2.5 px-2">
-          <span className="flex size-8 items-center justify-center border-2 border-border bg-primary text-primary-foreground shadow-pixel-sm">
-            <PixelLogo size={20} />
-          </span>
-          <span className="font-pixel text-lg tracking-tight">Sikto</span>
-        </Link>
+        <div className="mb-8 flex items-center justify-between gap-2 px-2">
+          <Link href="/" className="flex items-center gap-2.5">
+            <span className="flex size-8 items-center justify-center border-2 border-border bg-primary text-primary-foreground shadow-pixel-sm">
+              <PixelLogo size={20} />
+            </span>
+            <span className="font-pixel text-lg tracking-tight">Sikto</span>
+          </Link>
+          <ThemeToggle />
+        </div>
 
         <nav className="flex flex-col gap-1.5">
           {nav.map((item) => {
