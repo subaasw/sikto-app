@@ -17,7 +17,7 @@ from typing import get_args
 
 from pydantic import BaseModel
 
-from api.scenes.schema import Delivery, SceneTheme
+from api.scenes.schema import Delivery, FontSet, Palette, SceneTheme
 
 
 class TemplateStyle(BaseModel):
@@ -41,20 +41,39 @@ TEMPLATES: dict[str, Template] = {
     "explainer": Template(
         id="explainer",
         name="Explainer",
-        description="Clean, modern lessons: emerald accent on a deep neutral, hand-drawn headings.",
+        description="Clean, modern lessons: emerald marker on a clean board, hand-drawn headings.",
         theme=SceneTheme(
-            primary="#34d399",
-            background="#0b0f0e",
-            foreground="#e9efe9",
+            primary="#0c7a58",
+            background="#f4f6f2",
+            foreground="#1b2a24",
             font="Geist",
             template="explainer",
             background_style="solid",
             motion="smooth",
+            palette=Palette(
+                bg="#f4f6f2",
+                surface="#ffffff",
+                ink="#1b2a24",
+                soft="#51645b",
+                accent="#0c7a58",
+                accent2="#c2542e",
+                accent_ink="#ffffff",
+                stroke="#9db0a6",
+                wash="#e3ede6",
+            ),
+            fonts=FontSet(
+                display='"Bricolage Grotesque", Geist, sans-serif',
+                body="Geist, sans-serif",
+                script='"Caveat", cursive',
+            ),
+            texture="graph",
         ),
         style=TemplateStyle(
             voice=(
                 "Teach clearly and patiently, like a great tutor: define terms, give one "
-                "concrete example per idea, and keep a calm, encouraging tone."
+                "concrete example per idea, and keep a calm, encouraging tone. Make it "
+                "visual: for most slides choose one concrete icon or simple illustration "
+                "that represents the idea, so the lesson shows as much as it tells."
             ),
             max_bullets=5,
             diagram_bias=(
@@ -67,16 +86,33 @@ TEMPLATES: dict[str, Template] = {
     "marketing": Template(
         id="marketing",
         name="Marketing",
-        description="Bold and high-impact — confident orange on near-black for launch-style videos.",
+        description="Bold and high-impact — confident orange marker on a clean board for launch-style videos.",
         theme=SceneTheme(
-            primary="#f97316",
-            background="#0c0a09",
-            foreground="#fff7ed",
+            primary="#f4b642",
+            background="#171112",
+            foreground="#faeeea",
             font="Geist",
             template="marketing",
             background_style="solid",
             element_style="sticker",
             motion="punchy",
+            palette=Palette(
+                bg="#171112",
+                surface="#26191b",
+                ink="#faeeea",
+                soft="#c9a29b",
+                accent="#f4b642",
+                accent2="#ff8a5c",
+                accent_ink="#231505",
+                stroke="#4a3a35",
+                wash="#26191b",
+            ),
+            fonts=FontSet(
+                display='"Archivo Black", Geist, sans-serif',
+                body="Geist, sans-serif",
+                script='"Caveat", cursive',
+            ),
+            texture="grain",
         ),
         style=TemplateStyle(
             voice=(
@@ -97,16 +133,33 @@ TEMPLATES: dict[str, Template] = {
     "whiteboard": Template(
         id="whiteboard",
         name="Whiteboard",
-        description="A hand-drawn feel: chalk-blue ink on dark slate.",
+        description="A hand-drawn feel: blue marker drawn onto a clean white board.",
         theme=SceneTheme(
-            primary="#60a5fa",
-            background="#0f1216",
-            foreground="#e8eef5",
+            primary="#2456c9",
+            background="#f8fafc",
+            foreground="#1e2937",
             font="Geist",
             template="whiteboard",
             background_style="solid",
             sketch=True,
             motion="sketch",
+            palette=Palette(
+                bg="#f8fafc",
+                surface="#ffffff",
+                ink="#1e2937",
+                soft="#5a6b7d",
+                accent="#2456c9",
+                accent2="#cc4444",
+                accent_ink="#ffffff",
+                stroke="#93a3b3",
+                wash="#e7eef7",
+            ),
+            fonts=FontSet(
+                display='"Caveat", cursive',
+                body="Geist, sans-serif",
+                script='"Caveat", cursive',
+            ),
+            texture="grain",
         ),
         style=TemplateStyle(
             voice=(

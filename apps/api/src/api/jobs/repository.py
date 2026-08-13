@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col
 
 from api.enums import JobStatus
-from api.models import Job, Lesson, Notebook, ProductionRun, Source
+from api.models import Course, Job, Lesson, Notebook, ProductionRun, Source
 from api.planning.schema import ProductionPlan
 from api.scenes.schema import ElementType, SceneDocument
 
@@ -180,4 +180,53 @@ async def save_production_run(
         engine_version=plan.meta.engine_version,
     )
     session.add(run)
+    await session.commit()
+
+
+# --- Courses (multi-module plans) ------------------------------------------
+
+
+async def create_course(
+    session: AsyncSession,
+    job_id: uuid.UUID,
+    source_id: uuid.UUID,
+    *,
+    title: str,
+    summary: str,
+    modules: list[dict],
+) -> Course:
+    course = Course(
+        job_id=job_id, source_id=source_id, title=title, summary=summary, modules=modules
+    )
+    session.add(course)
+    await session.commit()
+    await session.refresh(course)
+    return course
+
+
+async def get_course(session: AsyncSession, course_id: uuid.UUID) -> Course | None:
+    return await session.get(Course, course_id)
+
+
+async def get_course_by_job(session: AsyncSession, job_id: uuid.UUID) -> Course | None:
+    result = await session.execute(select(Course).where(col(Course.job_id) == job_id).limit(1))
+    return result.scalar_one_or_none()
+
+
+async def set_module_job(
+    session: AsyncSession, course_id: uuid.UUID, order: int, module_job_id: uuid.UUID
+) -> None:
+    """Record which job is generating a module's lesson. Rewrites the whole
+    modules JSON (list is tiny; a targeted JSONB update isn't worth it)."""
+    course = await session.get(Course, course_id)
+    if course is None:
+        raise ValueError(f"course {course_id} not found")
+    modules = [dict(m) for m in course.modules]
+    for module in modules:
+        if module.get("order") == order:
+            module["job_id"] = str(module_job_id)
+            break
+    else:
+        raise ValueError(f"course {course_id} has no module {order}")
+    course.modules = modules
     await session.commit()

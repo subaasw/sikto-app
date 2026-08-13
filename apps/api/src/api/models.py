@@ -98,6 +98,22 @@ class ProductionRun(SQLModel, table=True):
     created_at: datetime | None = _created_at()
 
 
+class Course(SQLModel, table=True):
+    """A multi-module plan for a `course`-mode source. Each module is generated
+    into its own lesson (a normal video job) on demand — modules holds
+    ``[{order, title, summary, job_id?}]`` with job_id set once generated."""
+
+    __tablename__ = "courses"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    job_id: uuid.UUID = Field(foreign_key="jobs.id", index=True)
+    source_id: uuid.UUID = Field(foreign_key="sources.id")
+    title: str
+    summary: str
+    modules: list[Any] = Field(sa_column=Column(JSONB))
+    created_at: datetime | None = _created_at()
+
+
 class MediaAsset(SQLModel, table=True):
     __tablename__ = "media_assets"
 

@@ -16,10 +16,12 @@ from api.scenes.schema import (
     ElementType,
     Frame,
     ManimDraft,
+    Mark,
     Narration,
     Scene,
     SceneKind,
     SlideDraft,
+    WhiteboardDraft,
 )
 
 # Content band (the usable area, leaving margins top/bottom and sides). The
@@ -139,208 +141,6 @@ def slide_scene(index: int, draft: SlideDraft) -> Scene:
     return _slide(sid, draft, specs)
 
 
-def hero_layout(
-    sid: str,
-    heading: str,
-    bullets: list[str],
-    image_src: str,
-    *,
-    narration: str,
-    caption: str | None = None,
-    delivery: str = "neutral",
-    emphasis: list[str] | None = None,
-) -> Scene:
-    """Archetype: heading + up to ~3 bullets in a left column, a graphic on the
-    right. The graphic is the visible upgrade over a plain text slide."""
-    left_specs: list[tuple[Element, float]] = [
-        (Element(id=f"{sid}-h", type=ElementType.heading, text=heading, emphasis=emphasis or None), _W_HEADING)
-    ]
-    left_specs.extend(
-        (Element(id=f"{sid}-b{i}", type=ElementType.bullets, items=[b], emphasis=emphasis or None), _W_BULLET)
-        for i, b in enumerate(bullets)
-    )
-    elements = _layout_block(left_specs, x=0.06, width=0.50)
-    elements.append(
-        Element(
-            id=f"{sid}-img",
-            type=ElementType.image,
-            src=image_src,
-            frame=Frame(x=0.60, y=0.30, w=0.34, h=0.40),
-        )
-    )
-    animations = [
-        Animation(
-            target_id=el.id,
-            type=AnimationType.fade_in if i == 0 else AnimationType.reveal,
-            at_ms=i * 280,
-        )
-        for i, el in enumerate(elements)
-    ]
-    return Scene(
-        id=sid,
-        kind=SceneKind.slide,
-        narration=Narration(text=narration, caption=caption, delivery=delivery),
-        elements=elements,
-        animations=animations,
-    )
-
-
-def poster_layout(
-    sid: str,
-    heading: str,
-    image_src: str,
-    *,
-    narration: str,
-    caption: str | None = None,
-    delivery: str = "neutral",
-    emphasis: list[str] | None = None,
-) -> Scene:
-    """Marketing archetype: a dominant image fills the frame with a single punchy
-    headline below it — minimal text, visual-first. No bullets."""
-    image = Element(
-        id=f"{sid}-img",
-        type=ElementType.image,
-        src=image_src,
-        frame=Frame(x=0.16, y=0.08, w=0.68, h=0.56),
-    )
-    head = Element(
-        id=f"{sid}-h",
-        type=ElementType.heading,
-        text=heading,
-        emphasis=emphasis or None,
-        frame=Frame(x=0.08, y=0.66, w=0.84, h=0.14),
-    )
-    return Scene(
-        id=sid,
-        kind=SceneKind.slide,
-        narration=Narration(text=narration, caption=caption, delivery=delivery),
-        elements=[image, head],
-        animations=[
-            Animation(target_id=image.id, type=AnimationType.fade_in, at_ms=0),
-            Animation(target_id=head.id, type=AnimationType.reveal, at_ms=260),
-        ],
-    )
-
-
-def poster_text_layout(
-    sid: str,
-    heading: str,
-    *,
-    narration: str,
-    caption: str | None = None,
-    delivery: str = "neutral",
-    emphasis: list[str] | None = None,
-) -> Scene:
-    """Marketing fallback when no image resolves: one big bold headline, centred.
-    The animated texture + motion carry the frame; the narration carries detail."""
-    head = Element(
-        id=f"{sid}-h",
-        type=ElementType.heading,
-        text=heading,
-        emphasis=emphasis or None,
-        frame=Frame(x=0.1, y=0.34, w=0.8, h=0.32),
-    )
-    return Scene(
-        id=sid,
-        kind=SceneKind.slide,
-        narration=Narration(text=narration, caption=caption, delivery=delivery),
-        elements=[head],
-        animations=[Animation(target_id=head.id, type=AnimationType.fade_in, at_ms=0)],
-    )
-
-
-def icon_grid_layout(
-    sid: str,
-    heading: str,
-    items: list[tuple[str, str]],
-    *,
-    narration: str,
-    caption: str | None = None,
-    delivery: str = "neutral",
-    emphasis: list[str] | None = None,
-) -> Scene:
-    """Archetype: a heading over 2-4 columns, each an icon above a short label —
-    turns a plain bullet list into a visual grid. `items` is (label, icon_src)."""
-    n = len(items)
-    gap = 0.04
-    col_w = (_W - gap * (n - 1)) / n
-    top, icon_h = 0.34, 0.26
-    label_y, label_h = top + icon_h + 0.02, 0.14
-    heading_el = Element(
-        id=f"{sid}-h", type=ElementType.heading, text=heading, emphasis=emphasis or None,
-        frame=Frame(x=_X, y=0.12, w=_W, h=0.16),
-    )
-    elements: list[Element] = [heading_el]
-    animations: list[Animation] = [Animation(target_id=heading_el.id, type=AnimationType.fade_in, at_ms=0)]
-    for i, (label, icon_src) in enumerate(items):
-        col_x = _X + i * (col_w + gap)
-        icon = Element(
-            id=f"{sid}-i{i}", type=ElementType.image, src=icon_src,
-            frame=Frame(x=round(col_x + col_w * 0.18, 4), y=top, w=round(col_w * 0.64, 4), h=icon_h),
-        )
-        text = Element(
-            id=f"{sid}-l{i}", type=ElementType.text, text=label,
-            frame=Frame(x=round(col_x, 4), y=round(label_y, 4), w=round(col_w, 4), h=label_h),
-        )
-        elements += [icon, text]
-        at = (i + 1) * 260
-        animations.append(Animation(target_id=icon.id, type=AnimationType.fade_in, at_ms=at))
-        animations.append(Animation(target_id=text.id, type=AnimationType.reveal, at_ms=at))
-    return Scene(
-        id=sid,
-        kind=SceneKind.slide,
-        narration=Narration(text=narration, caption=caption, delivery=delivery),
-        elements=elements,
-        animations=animations,
-    )
-
-
-def presenter_layout(
-    sid: str,
-    heading: str,
-    bullets: list[str],
-    *,
-    narration: str,
-    emotion: str = "neutral",
-    caption: str | None = None,
-    delivery: str = "neutral",
-    emphasis: list[str] | None = None,
-) -> Scene:
-    """Archetype: a procedural stick-figure presenter on the left lip-syncing the
-    narration, with heading + bullets in the right column."""
-    figure = Element(
-        id=f"{sid}-fig",
-        type=ElementType.character,
-        frame=Frame(x=0.05, y=0.16, w=0.30, h=0.66),
-        style={"emotion": emotion},
-    )
-    right_specs: list[tuple[Element, float]] = [
-        (Element(id=f"{sid}-h", type=ElementType.heading, text=heading, emphasis=emphasis or None), _W_HEADING)
-    ]
-    right_specs.extend(
-        (Element(id=f"{sid}-b{i}", type=ElementType.bullets, items=[b], emphasis=emphasis or None), _W_BULLET)
-        for i, b in enumerate(bullets)
-    )
-    body = _layout_block(right_specs, x=0.40, width=0.54)
-    elements = [figure, *body]
-    animations = [Animation(target_id=figure.id, type=AnimationType.fade_in, at_ms=0)]
-    animations += [
-        Animation(
-            target_id=el.id,
-            type=AnimationType.fade_in if i == 0 else AnimationType.reveal,
-            at_ms=(i + 1) * 280,
-        )
-        for i, el in enumerate(body)
-    ]
-    return Scene(
-        id=sid,
-        kind=SceneKind.slide,
-        narration=Narration(text=narration, caption=caption, delivery=delivery),
-        elements=elements,
-        animations=animations,
-    )
-
-
 def _card(eid: str, label: str, frame: Frame) -> Element:
     return Element(id=eid, type=ElementType.card, text=label, frame=frame)
 
@@ -441,7 +241,7 @@ def diagram_scene(index: int, draft: DiagramDraft) -> Scene:
     ]
     return Scene(
         id=sid,
-        kind=SceneKind.slide,
+        kind=SceneKind.diagram,  # keeps `elements` (cards/arrows); plan_layers skips non-slide
         narration=Narration(text=draft.narration, caption=draft.caption, delivery=draft.delivery),
         elements=elements,
         animations=animations,
@@ -457,6 +257,56 @@ def manim_scene(index: int, draft: ManimDraft) -> Scene:
         manim_code=draft.manim_code,
         manim_entry="MainScene",
     )
+
+
+def _clamp01(v: float) -> float:
+    return max(0.0, min(float(v), 1.0))
+
+
+# Per-kind height hint (0..1). Text marks are short; boxes/sketches enclose more.
+# The renderer auto-sizes text, so this is only a placement hint, not a hard box.
+_MARK_HEIGHT = {"title": 0.16, "box": 0.2, "sketch": 0.24}
+
+
+def whiteboard_scene(index: int, draft: WhiteboardDraft) -> Scene:
+    """Build a whiteboard scene from the director's marks. The model owns layout
+    and timing; we only clamp positions into the board and resolve arrow endpoints
+    (referenced by list index) to mark ids. No layout solver, no fallback — a beat
+    that can't be directed is rendered as a slide by the caller."""
+    sid = f"s{index}"
+    marks: list[Mark] = []
+    for i, m in enumerate(draft.marks[:12]):
+        x = _clamp01(m.x)
+        y = _clamp01(m.y)
+        w = max(0.05, min(_clamp01(m.w), 1.0 - x))
+        h = min(_MARK_HEIGHT.get(m.kind, 0.1), 1.0 - y)
+        marks.append(
+            Mark(
+                id=f"{sid}m{i}",
+                kind=m.kind,
+                text=m.text.strip(),
+                frame=Frame(x=round(x, 4), y=round(y, 4), w=round(w, 4), h=round(h, 4)),
+                accent=m.accent,
+                emphasis=m.emphasis,
+                at=_clamp01(m.at),
+                draw=max(0.2, min(float(m.draw), 3.0)),
+            )
+        )
+    # Resolve arrows: the model references source/target by index in its own list.
+    for mark, m in zip(marks, draft.marks[:12]):
+        if m.kind == "arrow":
+            mark.ref = marks[m.from_index].id if _in_range(m.from_index, marks) else None
+            mark.to = marks[m.to_index].id if _in_range(m.to_index, marks) else None
+    return Scene(
+        id=sid,
+        kind=SceneKind.whiteboard,
+        narration=Narration(text=draft.narration, caption=draft.caption, delivery=draft.delivery),
+        marks=marks,
+    )
+
+
+def _in_range(i: int | None, marks: list[Mark]) -> bool:
+    return i is not None and 0 <= i < len(marks)
 
 
 # --- scene division --------------------------------------------------------

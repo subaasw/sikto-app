@@ -11,7 +11,8 @@ from api.db import SessionLocal
 from api.engines.clients import scene_render_client_from_settings, tts_client_from_settings
 from api.enums import JobStatus
 from api.ingestion.registry import select_loader
-from api.jobs.scene_pipeline import SceneEngines, run_scene_pipeline
+from api.jobs.repository import get_source
+from api.jobs.scene_pipeline import SceneEngines, run_course_plan, run_scene_pipeline
 from api.models import Job
 from api.storage import LocalStorage
 
@@ -40,7 +41,14 @@ async def process_next_job() -> uuid.UUID | None:
         job: Job | None = result.scalar_one_or_none()
         if job is None:
             return None
-        await run_scene_pipeline(session, job.id, default_scene_engines())
+        # `course`-mode sources plan a multi-module course; everything else (and
+        # the per-module generation jobs, created as `video`) builds one lesson.
+        source = await get_source(session, job.source_id)
+        engines = default_scene_engines()
+        if source is not None and source.mode == "course":
+            await run_course_plan(session, job.id, engines)
+        else:
+            await run_scene_pipeline(session, job.id, engines)
         return job.id
 
 

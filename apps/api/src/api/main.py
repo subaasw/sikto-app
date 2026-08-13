@@ -14,7 +14,17 @@ from api.config import get_settings
 from api.db import check_connection, engine
 from api.jobs.worker import run_worker_loop
 from api.logger import add_request_logging, configure_logging, register_exception_handlers
-from api.routers import assets, auth, chat, health, lessons, notebooks, sources, templates
+from api.routers import (
+    assets,
+    auth,
+    chat,
+    courses,
+    health,
+    lessons,
+    notebooks,
+    sources,
+    templates,
+)
 
 settings = get_settings()
 configure_logging(settings)
@@ -74,6 +84,7 @@ app.include_router(chat.router)
 app.include_router(notebooks.router)
 app.include_router(templates.router)
 app.include_router(assets.router)
+app.include_router(courses.router)
 
 # Serve rendered videos and audio from local storage (Starlette's StaticFiles
 # supports HTTP range requests, so videos seek correctly in the browser).

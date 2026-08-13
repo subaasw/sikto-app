@@ -23,7 +23,7 @@ def test_scene_document_round_trips():
     restored = SceneDocument.model_validate_json(doc.model_dump_json())
     assert restored == doc
     assert restored.scenes[0].kind == SceneKind.slide
-    assert restored.theme.primary == "#84cc16"
+    assert restored.theme.primary == "#2563eb"
 
 
 def test_scene_document_requires_at_least_one_scene():
