@@ -39,6 +39,26 @@ export function createSource(body: CreateSourceInput): Promise<{ job_id: string 
   return request('/sources', { method: 'POST', body: JSON.stringify(body) });
 }
 
+/** Uploads PDF/DOCX/PPTX/XLSX/EPUB files; the API converts them to markdown via
+ * MarkItDown once the lesson job runs. Returns each file's server-side path,
+ * which slots straight into `inputs` on createSource. */
+export async function uploadSourceDocuments(
+  files: File[],
+): Promise<{ path: string; name: string }[]> {
+  const form = new FormData();
+  for (const file of files) form.append('files', file);
+  const res = await fetch(`${API_BASE}/sources/upload`, {
+    method: 'POST',
+    credentials: 'include',
+    body: form,
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Upload failed (${res.status}): ${detail || res.statusText}`);
+  }
+  return res.json();
+}
+
 export function getJob(id: string): Promise<Job> {
   return request(`/jobs/${id}`);
 }

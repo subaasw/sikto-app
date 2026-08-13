@@ -2,11 +2,13 @@
 
 import { useRouter } from 'next/navigation';
 import {
+  FileText,
   GraduationCap,
   Link2,
   Loader2,
   Megaphone,
   Mic,
+  Paperclip,
   PenLine,
   Plus,
   Presentation,
@@ -14,10 +16,13 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { type FormEvent, useState } from 'react';
+import { type ChangeEvent, type FormEvent, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl, type SegmentOption } from '@/components/ui/segmented-control';
-import { createSource } from '@/lib/api';
+import { createSource, uploadSourceDocuments } from '@/lib/api';
+
+// Mirrors DOCUMENT_EXTENSIONS in api.ingestion.documents (MarkItDown-backed).
+const DOCUMENT_ACCEPT = '.pdf,.epub,.docx,.pptx,.xlsx';
 
 const templateOptions: SegmentOption<string>[] = [
   { value: 'explainer', label: 'Explainer', icon: Presentation },
@@ -40,13 +45,19 @@ export function SourceInput() {
   const router = useRouter();
   const [links, setLinks] = useState<string[]>(['']);
   const [text, setText] = useState('');
+  const [showText, setShowText] = useState(false);
+  const [docs, setDocs] = useState<{ path: string; name: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [template, setTemplate] = useState('explainer');
   const [mode, setMode] = useState('auto');
   const [voice, setVoice] = useState('male');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const inputs = [...links.map((l) => l.trim()), text.trim()].filter(Boolean);
+  const inputs = [...links.map((l) => l.trim()), text.trim(), ...docs.map((d) => d.path)].filter(
+    Boolean,
+  );
   const multi = inputs.length > 1;
 
   function setLink(i: number, value: string) {
@@ -57,6 +68,25 @@ export function SourceInput() {
   }
   function removeLink(i: number) {
     setLinks((prev) => (prev.length === 1 ? [''] : prev.filter((_, idx) => idx !== i)));
+  }
+
+  async function handleFiles(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = ''; // allow re-selecting the same file
+    if (files.length === 0) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const uploaded = await uploadSourceDocuments(files);
+      setDocs((prev) => [...prev, ...uploaded]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }
+  function removeDoc(i: number) {
+    setDocs((prev) => prev.filter((_, idx) => idx !== i));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -115,16 +145,84 @@ export function SourceInput() {
 
       <div className="flex flex-col gap-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Or paste text
+          Documents
         </span>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Paste notes or an article to include…"
-          rows={5}
-          className={`${fieldClass} resize-y`}
+        {docs.map((doc, i) => (
+          <div key={doc.path} className="flex items-center gap-2">
+            <FileText className="size-4 shrink-0 text-muted-foreground" />
+            <span className="flex-1 truncate border-2 border-border bg-surface px-4 py-3 text-sm">
+              {doc.name}
+            </span>
+            <button
+              type="button"
+              onClick={() => removeDoc(i)}
+              aria-label="Remove document"
+              className="flex size-9 shrink-0 items-center justify-center border-2 border-border text-muted-foreground transition-colors hover:bg-muted"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        ))}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={DOCUMENT_ACCEPT}
+          onChange={handleFiles}
+          className="hidden"
         />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="flex w-fit items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+        >
+          {uploading ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Paperclip className="size-3.5" />
+          )}
+          {uploading ? 'Uploading…' : 'Upload PDF, slides, or docs'}
+        </button>
       </div>
+
+      {showText ? (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Pasted text
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setShowText(false);
+                setText('');
+              }}
+              className="flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <X className="size-3.5" />
+              Remove
+            </button>
+          </div>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Paste notes or an article to include…"
+            rows={5}
+            autoFocus
+            className={`${fieldClass} resize-y`}
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowText(true)}
+          className="flex w-fit items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <Plus className="size-3.5" />
+          Or paste text instead
+        </button>
+      )}
 
       <div className="flex flex-col gap-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

@@ -43,6 +43,27 @@ async def test_post_sources_rejects_empty():
         assert resp.status_code == 422
 
 
+async def test_upload_accepts_document_and_returns_local_path():
+    async with await _client() as client:
+        resp = await client.post(
+            "/sources/upload",
+            files={"files": ("notes.pdf", b"%PDF-1.4 fake", "application/pdf")},
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body[0]["name"] == "notes.pdf"
+        assert body[0]["path"].endswith(".pdf")
+
+
+async def test_upload_rejects_unsupported_extension():
+    async with await _client() as client:
+        resp = await client.post(
+            "/sources/upload",
+            files={"files": ("virus.exe", b"nope", "application/octet-stream")},
+        )
+        assert resp.status_code == 422
+
+
 @needs_services
 async def test_job_reaches_done_after_worker_runs():
     async with await _client() as client:

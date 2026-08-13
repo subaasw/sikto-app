@@ -1,17 +1,21 @@
 import asyncio
 import json
+import os
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.config import get_settings
 from api.db import SessionLocal, get_session
+from api.ingestion.documents import DOCUMENT_EXTENSIONS
 from api.ingestion.loaders import SOURCE_SEP
 from api.jobs.repository import create_source_and_job, get_job
 from api.lesson_mode import DEFAULT_MODE, MODES
 from api.scenes.templates import DEFAULT_TEMPLATE, TEMPLATES
+from api.storage import LocalStorage
 from api.voices import DEFAULT_VOICE, VOICES
 
 router = APIRouter(tags=["sources"])
@@ -32,6 +36,11 @@ class CreateSourceRequest(BaseModel):
 
 class CreateSourceResponse(BaseModel):
     job_id: uuid.UUID
+
+
+class UploadedDocument(BaseModel):
+    path: str
+    name: str
 
 
 class JobResponse(BaseModel):
@@ -55,6 +64,29 @@ async def create_source(
         session, source_type=body.type, raw_input=raw_input, template=template, mode=mode, voice=voice
     )
     return CreateSourceResponse(job_id=job.id)
+
+
+@router.post("/sources/upload", status_code=201, response_model=list[UploadedDocument])
+async def upload_source_documents(
+    files: list[UploadFile] = File(...),
+) -> list[UploadedDocument]:
+    """Upload PDFs/slides/docs to use as lesson sources. Each file is stored as-is;
+    MarkItDown converts it to markdown when the job runs (api.ingestion.documents)."""
+    storage = LocalStorage(get_settings().storage_dir)
+    out: list[UploadedDocument] = []
+    for file in files:
+        ext = os.path.splitext(file.filename or "")[1].lower()
+        if ext not in DOCUMENT_EXTENSIONS:
+            raise HTTPException(status_code=422, detail=f"unsupported file type: {ext or file.filename}")
+        data = await file.read()
+        if not data:
+            continue  # skip empties rather than failing the whole batch
+        key = f"documents/{uuid.uuid4().hex}{ext}"
+        storage.put(key, data)
+        out.append(UploadedDocument(path=str(storage.root / key), name=file.filename or "Upload"))
+    if not out:
+        raise HTTPException(status_code=422, detail="no usable files")
+    return out
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
