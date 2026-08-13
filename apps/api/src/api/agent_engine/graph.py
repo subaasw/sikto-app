@@ -15,6 +15,7 @@ from api.agent_engine.research import WebSearch, web_search_from_settings
 from api.agent_engine.state import BrainState
 from api.agent_engine.vision import VisionReviewer, vision_reviewer_from_settings
 from api.scenes.assemble import divide_scenes
+from api.scenes.contrast import ensure_legible
 from api.scenes.schema import SceneDocument
 from api.scenes.templates import Template, get_template
 
@@ -82,13 +83,14 @@ async def generate_scene_document(
     template: Template | None = None,
     mode: str = "auto",
 ) -> SceneDocument:
-    style = (template or get_template(None)).style
+    tmpl = template or get_template(None)
     nodes = BrainNodes(
         llm or structured_llm_from_settings(),
         search=search,
         vision=vision or vision_reviewer_from_settings(),
         max_repairs=max_repairs,
-        style=style,
+        style=tmpl.style,
+        theme=tmpl.theme,
         mode=mode,
     )
     brain = build_brain(nodes)
@@ -106,6 +108,9 @@ async def generate_scene_document(
     if document is None:
         raise BrainError("brain produced no scene document")
     document = cast(SceneDocument, document)
+    # Legibility gate: whatever the director painted, text must read (repairs,
+    # never rejects — a lesson always renders).
+    ensure_legible(document.theme)
     # Director pass: split any over-crowded scene into sequential scenes. Runs
     # after repair so it never interferes with the validate/repair loop.
     return document.model_copy(update={"scenes": divide_scenes(document.scenes)})

@@ -11,7 +11,7 @@ from api.agent_engine.state import BrainState
 from api.agent_engine.vision import VisionReviewer
 from api.config import get_settings
 from api.lesson_mode import DEFAULT_MODE, beat_bounds, mode_guidance
-from api.scenes.assemble import diagram_scene, manim_scene, slide_scene
+from api.scenes.assemble import diagram_scene, manim_scene, slide_scene, whiteboard_scene
 from api.scenes.schema import (
     DiagramDraft,
     ElementType,
@@ -22,7 +22,9 @@ from api.scenes.schema import (
     ResearchPlan,
     Scene,
     SceneDocument,
+    SceneTheme,
     SlideDraft,
+    WhiteboardDraft,
 )
 from api.scenes.templates import TemplateStyle, get_template
 from api.scenes.validation import validate_document
@@ -48,7 +50,9 @@ OUTLINE_SYSTEM = (
     "produce a tight microlearning outline: a title, a one-sentence summary, and a set of "
     "ordered beats. Each beat has a short title and summary. Scale the number of beats to the "
     "depth of the material — short sources get a few beats, rich sources get more. "
-    "Set needs_math=true only when the beat is best shown as an animated equation. "
+    "Set needs_math=true when the beat is best shown as an animated visualization — an "
+    "equation, but also a graph/plot, geometric intuition, number line, transformation, or "
+    "step-by-step build-up where the motion carries the meaning. "
     "Set needs_diagram=true when the beat is best shown as a labelled diagram of boxes and "
     "arrows (a process, hierarchy, or comparison) rather than prose. Ground everything in "
     "the source; use the research only to organise and clarify, never to invent facts."
@@ -77,11 +81,38 @@ DIAGRAM_SYSTEM = (
     "positions the boxes — you only choose the layout, labels, narration, and delivery."
 )
 
-MANIM_SYSTEM = (
-    "You write a self-contained Manim Community scene named MainScene that animates the beat's "
-    "math, plus a spoken narration explaining it. Output only valid Manim Python in manim_code "
-    "(no prose, no imports beyond manim). Do not access the network or filesystem."
-)
+def _manim_system(theme: SceneTheme | None) -> str:
+    """The Manim coder prompt, optionally painted with the lesson theme so the clip
+    blends with the surrounding scenes instead of looking like a foreign insert."""
+    base = (
+        "You write a self-contained Manim Community scene named MainScene that creates a clear, "
+        "animated VISUALIZATION for the beat — not only equations: graphs/plots (Axes, "
+        "NumberPlane), geometric intuition (shapes, angles, vectors), number lines, "
+        "transformations (Transform/ReplacementTransform), and step-by-step build-ups all count. "
+        "Also write a spoken narration explaining it.\n"
+        "Rules:\n"
+        "- Output ONLY valid Manim Python in manim_code. No prose; no imports beyond "
+        "manim, numpy, math, random. No network or filesystem access.\n"
+        "- Keep EVERY mobject inside the frame: scale wide groups with "
+        ".scale_to_fit_width(config.frame_width - 1) and tall ones with "
+        ".scale_to_fit_height(config.frame_height - 1). Never let text run off the edge.\n"
+        "- Show one idea at a time: FadeOut what's finished before introducing the next, and "
+        "never overlap text. Label what you animate.\n"
+        "- Keep it concise (roughly 5-15 seconds of runtime with self.wait() beats) — it is "
+        "voiced over, so pace it like narration, not a demo reel."
+    )
+    if theme is None:
+        return base
+    lines = [
+        base,
+        "\nMatch the lesson's look so the clip blends in:",
+        f'- set self.camera.background_color = "{theme.background}" in construct().',
+        f'- draw the focal / animated object in the accent colour "{theme.primary}".',
+        f'- render text and labels in "{theme.foreground}".',
+    ]
+    if theme.font:
+        lines.append(f'- pass font="{theme.font}" to Text(...).')
+    return "\n".join(lines)
 
 CRITIQUE_SYSTEM = (
     "You are Sikto's editor. Review the assembled microlearning lesson for NARRATIVE quality: "
@@ -139,6 +170,7 @@ class BrainNodes:
         vision: VisionReviewer | None = None,
         max_repairs: int = 2,
         style: TemplateStyle | None = None,
+        theme: SceneTheme | None = None,
         mode: str = DEFAULT_MODE,
     ) -> None:
         self._llm = llm
@@ -146,6 +178,7 @@ class BrainNodes:
         self._vision = vision
         self._max_repairs = max_repairs
         self._style = style or get_template(None).style
+        self._theme = theme
         self._mode = mode
 
     async def research(self, state: BrainState) -> dict[str, Any]:
@@ -194,7 +227,7 @@ class BrainNodes:
         prompt = _beat_prompt(state, beat, fb)
         style = self._style
         if beat.needs_math:
-            manim_draft = await self._llm.generate(MANIM_SYSTEM, prompt, ManimDraft)
+            manim_draft = await self._llm.generate(_manim_system(self._theme), prompt, ManimDraft)
             return manim_scene(index, manim_draft)
         if beat.needs_diagram:
             diagram_draft = await self._llm.generate(_styled(DIAGRAM_SYSTEM, style), prompt, DiagramDraft)
