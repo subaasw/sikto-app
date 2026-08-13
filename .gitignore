@@ -46,3 +46,12 @@ htmlcov/
 
 # Docs (excluded from version control)
 docs/
+
+.agents
+.claude
+skills-*
+.storage
+.serena/
+.run.file
+apps/api/media/
+/marketing-preview.mp4
