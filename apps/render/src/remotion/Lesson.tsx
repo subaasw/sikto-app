@@ -1,3 +1,4 @@
+import { MarketingScene } from '@sikto/motion-kit';
 import { Captions, SceneStage } from '@sikto/scene-kit';
 import {
   AbsoluteFill,
@@ -47,6 +48,10 @@ function RenderedScene({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const progressMs = (frame / fps) * 1000;
+  if (scene.kind === 'motion' && scene.motion) {
+    // marketing copy IS the on-screen text — no captions overlay
+    return <MarketingScene scene={scene} durationMs={durationMs} />;
+  }
   return (
     <>
       <SceneStage scene={scene} theme={theme} progressMs={progressMs} sceneDurationMs={durationMs} words={words} profile={profile} Img={Img} Video={ManimVideo} manimUrl={manimUrl} />

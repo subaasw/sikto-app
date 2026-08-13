@@ -20,6 +20,7 @@ const { renderStill, selectComposition } = await import('@remotion/renderer');
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCENE_KIT = resolve(HERE, '../../../packages/scene-kit/src/index.ts');
+const MOTION_KIT = resolve(HERE, '../../../packages/motion-kit/src/index.ts');
 
 const inputProps = JSON.parse(readFileSync(values.props, 'utf8'));
 const serveUrl = await bundle({
@@ -28,7 +29,7 @@ const serveUrl = await bundle({
     ...config,
     resolve: {
       ...config.resolve,
-      alias: { ...(config.resolve?.alias ?? {}), '@sikto/scene-kit$': SCENE_KIT },
+      alias: { ...(config.resolve?.alias ?? {}), '@sikto/scene-kit$': SCENE_KIT, '@sikto/motion-kit$': MOTION_KIT },
     },
   }),
 });

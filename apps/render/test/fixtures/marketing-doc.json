@@ -1,0 +1,186 @@
+{
+  "version": 1,
+  "title": "Sikto",
+  "summary": "marketing fixture",
+  "aspect_ratio": "16:9",
+  "theme": {
+    "primary": "#2563eb",
+    "background": "#f6f7f9",
+    "foreground": "#1f2937",
+    "font": "Geist",
+    "template": "explainer",
+    "background_style": "gradient",
+    "element_style": "plain",
+    "sketch": false,
+    "motion": "smooth"
+  },
+  "voice": {
+    "voice": "en-US-AndrewNeural",
+    "energy": "balanced"
+  },
+  "scenes": [
+    {
+      "id": "s0",
+      "kind": "motion",
+      "duration_ms": null,
+      "background": null,
+      "narration": {
+        "text": "n",
+        "caption": null,
+        "delivery": "neutral"
+      },
+      "visual_query": null,
+      "visual_kind": null,
+      "elements": [],
+      "animations": [],
+      "layers": [],
+      "manim_code": null,
+      "manim_entry": "MainScene",
+      "marks": [],
+      "motion": {
+        "beat": "hook",
+        "mood": "bold",
+        "props": [
+          {
+            "content": "Why it matters",
+            "role": "chip",
+            "emphasis": 1,
+            "entrance": "rise"
+          },
+          {
+            "content": "Meet sikto",
+            "role": "title",
+            "emphasis": 2,
+            "entrance": "pop"
+          }
+        ],
+        "accent": "sparks",
+        "palette": "midnight",
+        "text_style": "spring_in",
+        "background": "mesh",
+        "outro": "wipe",
+        "camera": {
+          "drift": "right",
+          "zoom": "in",
+          "tilt_deg": -1.2
+        },
+        "planes": []
+      }
+    },
+    {
+      "id": "s1",
+      "kind": "motion",
+      "duration_ms": null,
+      "background": null,
+      "narration": {
+        "text": "n",
+        "caption": null,
+        "delivery": "neutral"
+      },
+      "visual_query": null,
+      "visual_kind": null,
+      "elements": [],
+      "animations": [],
+      "layers": [],
+      "manim_code": null,
+      "manim_entry": "MainScene",
+      "marks": [],
+      "motion": {
+        "beat": "stat",
+        "mood": "energetic",
+        "props": [
+          {
+            "content": "By the numbers",
+            "role": "chip",
+            "emphasis": 1,
+            "entrance": "rise"
+          },
+          {
+            "content": "Save 5 hours a week",
+            "role": "title",
+            "emphasis": 2,
+            "entrance": "drop"
+          },
+          {
+            "content": "less busywork, more teaching",
+            "role": "sub",
+            "emphasis": 1,
+            "entrance": "rise"
+          }
+        ],
+        "accent": "sparks",
+        "palette": "ember",
+        "text_style": "blur_up",
+        "background": "grid",
+        "outro": "push",
+        "camera": {
+          "drift": "left",
+          "zoom": "out",
+          "tilt_deg": 0.0
+        },
+        "planes": [
+          {
+            "query": "teacher at laptop",
+            "depth": "mid",
+            "src": "https://picsum.photos/seed/sikto/800/600"
+          }
+        ]
+      }
+    },
+    {
+      "id": "s2",
+      "kind": "motion",
+      "duration_ms": null,
+      "background": null,
+      "narration": {
+        "text": "n",
+        "caption": null,
+        "delivery": "neutral"
+      },
+      "visual_query": null,
+      "visual_kind": null,
+      "elements": [],
+      "animations": [],
+      "layers": [],
+      "manim_code": null,
+      "manim_entry": "MainScene",
+      "marks": [],
+      "motion": {
+        "beat": "cta",
+        "mood": "bold",
+        "props": [
+          {
+            "content": "Your move",
+            "role": "chip",
+            "emphasis": 1,
+            "entrance": "rise"
+          },
+          {
+            "content": "Get started",
+            "role": "title",
+            "emphasis": 2,
+            "entrance": "pop"
+          },
+          {
+            "content": "Start free today",
+            "role": "cta",
+            "emphasis": 2,
+            "entrance": "drop"
+          }
+        ],
+        "accent": "confetti",
+        "palette": "midnight",
+        "text_style": "spring_in",
+        "background": "mesh",
+        "outro": "none",
+        "camera": {
+          "drift": "up",
+          "zoom": "in",
+          "tilt_deg": 1.2
+        },
+        "planes": []
+      }
+    }
+  ],
+  "profile": "video"
+}
