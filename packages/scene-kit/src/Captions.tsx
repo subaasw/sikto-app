@@ -1,3 +1,4 @@
+import { TYPE_SCALE } from './tokens';
 import type { CSSProperties } from 'react';
 import type { SceneTheme, WordTiming } from './types';
 
@@ -69,10 +70,10 @@ export function Captions({
     maxWidth: '90%',
     whiteSpace: 'nowrap',
     textAlign: 'center',
-    fontSize: '2.1cqw',
+    fontSize: `${TYPE_SCALE.caption.size}cqw`,
     lineHeight: 1.3,
     fontWeight: 600,
-    color: '#ffffff',
+    color: '#ffffff', // broadcast-standard white-on-scrim; deliberately theme-independent
     background: 'rgba(0,0,0,0.7)',
     padding: '0.5cqw 1.1cqw',
     borderRadius: '0.6cqw',

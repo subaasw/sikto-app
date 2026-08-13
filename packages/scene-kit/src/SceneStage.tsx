@@ -1,47 +1,38 @@
 import type { CSSProperties } from 'react';
-import { ElementView, type ImgComponent } from './ElementView';
-import { clamp } from './motion';
-import { SceneBackground } from './SceneBackground';
-import { getTemplate } from './templates/registry';
-import type { Animation, Element, Frame, RenderProfile, Scene, SceneTheme, WordTiming } from './types';
+import { TYPE_SCALE, resolveTokens } from './tokens';
+import { CleanLayerView } from './CleanLayerView';
+import { DiagramView } from './DiagramView';
+import { Hand } from './Hand';
+import { LayerView } from './LayerView';
+import { renderBackground } from './templates/backgrounds';
+import { DEFAULT_SCENE_MS, type ImgComponent, type Layer, type RenderProfile, type Scene, type SceneTheme, type WordTiming } from './types';
+import { drawWindows, revealFor, WhiteboardSheet } from './whiteboard';
 
-function frameStyle(frame: Frame): CSSProperties {
-  return {
-    position: 'absolute',
-    left: `${frame.x * 100}%`,
-    top: `${frame.y * 100}%`,
-    width: `${frame.w * 100}%`,
-    height: `${frame.h * 100}%`,
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    overflow: 'hidden', // never let an element spill its frame
-  };
+/** Teaching order in which layers are drawn on: title first, then the visual,
+ * then supporting captions. Independent of paint depth. */
+function drawRank(l: Layer): number {
+  if (l.kind === 'headline') return 0;
+  if (l.kind === 'image' || l.kind === 'shape') return 1;
+  return 2; // caption, sticker
 }
 
 /**
- * Renders one scene. This is the single source of truth for how a scene looks —
- * the live player and the Remotion exporter both render through it, so the video
- * and the in-browser preview are always identical.
+ * Renders one scene — the single source of truth shared by the live player and
+ * the Remotion exporter, so preview == MP4.
  *
- * - `progressMs`: elapsed time within the scene. The player passes its clock;
- *   Remotion passes `frame / fps * 1000`.
- * - `sceneDurationMs`: the scene's full length (its narration). When given, the
- *   element reveals are spread across the narration so the visuals build as the
- *   voice-over speaks — instead of all firing in the first second.
- * - `revealCount` (class/step-through mode): show only the first N animated
- *   elements (by reveal order) instead of gating by time.
+ * A slide scene is a whiteboard: a light board onto which `layers` are drawn on
+ * one at a time (in teaching order) by a hand+marker, then held. A manim scene
+ * plays its rendered clip.
  *
- * The root sets a container so `cqw` units resolve to the stage width in any host.
+ * - `progressMs`: elapsed time within the scene (player clock; Remotion passes
+ *   `frame / fps * 1000`).
+ * - `sceneDurationMs`: drives the draw pacing so the board fills over the scene.
  */
 export function SceneStage({
   scene,
   theme,
   progressMs,
   sceneDurationMs,
-  revealCount,
-  words,
-  profile = 'video',
   Img,
   Video,
   manimUrl,
@@ -50,6 +41,7 @@ export function SceneStage({
   theme: SceneTheme;
   progressMs: number;
   sceneDurationMs?: number;
+  // accepted for call-site compatibility; the whiteboard renderer doesn't use these
   revealCount?: number;
   words?: WordTiming[];
   profile?: RenderProfile;
@@ -57,21 +49,19 @@ export function SceneStage({
   Video?: ImgComponent; // host video component (Remotion OffthreadVideo / plain <video>)
   manimUrl?: string; // rendered Manim clip for this scene
 }) {
-  const tpl = getTemplate(theme);
+  const tokens = resolveTokens(theme);
   const container: CSSProperties = {
     position: 'absolute',
     inset: 0,
     containerType: 'inline-size',
-    color: theme.foreground,
-    fontFamily: theme.font,
+    color: tokens.palette.ink,
+    fontFamily: tokens.fonts.body,
   };
 
   if (scene.kind === 'manim') {
-    // Play the rendered Manim clip if we have one + a host video component;
-    // otherwise fall back to the narration text stub.
     if (manimUrl && Video) {
       return (
-        <div style={{ ...container, background: scene.background ?? theme.background }}>
+        <div style={{ ...container, background: scene.background ?? tokens.palette.bg }}>
           <Video src={manimUrl} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </div>
       );
@@ -80,7 +70,7 @@ export function SceneStage({
       <div
         style={{
           ...container,
-          background: scene.background ?? theme.background,
+          background: scene.background ?? tokens.palette.bg,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -88,84 +78,77 @@ export function SceneStage({
           padding: '8%',
         }}
       >
-        <div style={{ fontSize: '2.6cqw', opacity: 0.85 }}>
+        <div style={{ fontSize: `${TYPE_SCALE.body.size}cqw`, opacity: 0.85 }}>
           {scene.narration.caption ?? scene.narration.text}
         </div>
       </div>
     );
   }
 
-  const animFor: Record<string, Animation> = Object.fromEntries(
-    scene.animations.map((a) => [a.target_id, a]),
-  );
-  const orderOf: Record<string, number> = Object.fromEntries(
-    scene.animations.map((a, i) => [a.target_id, i]),
-  );
-  const steps = scene.animations.length;
+  // motion scenes render through @sikto/motion-kit (both hosts branch before
+  // SceneStage); an unhandled one falls through to the whiteboard below.
 
-  // When the scene's full length is known, spread reveals across the first
-  // ~62% of the narration so each point lands as it's spoken; otherwise fall
-  // back to each animation's authored `at_ms`.
-  function startMs(anim: Animation, idx: number): number {
-    if (sceneDurationMs && steps > 0) return (idx / steps) * sceneDurationMs * 0.62;
-    return anim.at_ms;
+  if (scene.kind === 'diagram') {
+    return (
+      <div style={{ ...container, background: scene.background ?? tokens.palette.bg }}>
+        <DiagramView
+          elements={scene.elements}
+          theme={theme}
+          progressMs={progressMs}
+          sceneDurationMs={sceneDurationMs}
+        />
+      </div>
+    );
   }
 
-  function styleFor(element: Element): CSSProperties {
-    const id = element.id;
-    const anim = animFor[id];
-    const ord = orderOf[id];
-    if (revealCount === undefined) {
-      if (!anim) return { opacity: 1 };
-      return tpl.entrance({
-        element,
-        anim,
-        atMs: startMs(anim, ord ?? 0),
-        progressMs,
-        index: ord ?? 0,
-        profile,
-        words,
-      });
+  // Whiteboard: the board, then each drawable layer wiped on in teaching order.
+  const drawable = (scene.layers ?? [])
+    .filter((l) => l.kind !== 'bg-texture')
+    .sort((a, b) => drawRank(a) - drawRank(b));
+  const windows = drawWindows(drawable.length, sceneDurationMs ?? DEFAULT_SCENE_MS);
+
+  // Clean (non-sketch) templates — explainer & friends — get the professional
+  // renderer: layers fade/rise in over a solid background, no marker hand.
+  if (!theme.sketch) {
+    return (
+      <div style={container}>
+        {renderBackground(theme, progressMs)}
+        {drawable.map((layer, i) => (
+          <CleanLayerView
+            key={i}
+            layer={layer}
+            theme={theme}
+            reveal={revealFor(progressMs, windows[i])}
+            Img={Img}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // The hand rides the wipe edge of whichever layer is currently drawing.
+  const activeIndex = windows.findIndex((w) => progressMs > w.start && progressMs < w.end);
+  let hand: { x: number; y: number } | null = null;
+  if (activeIndex >= 0) {
+    const layer = drawable[activeIndex];
+    const f = layer.frame;
+    if (f) {
+      const reveal = revealFor(progressMs, windows[activeIndex]);
+      hand = { x: (f.x + reveal * f.w) * 100, y: (f.y + f.h * 0.5) * 100 };
     }
-    const shown = ord === undefined || ord < revealCount;
-    return shown
-      ? { opacity: 1, transition: 'opacity 250ms ease, transform 250ms ease' }
-      : { opacity: 0, transform: 'translateY(12px)' };
   }
 
-  // 0..1 reveal progress for an element — drives "draw" elements (and is safe to
-  // pass to any element; non-drawn ones ignore it).
-  function progressFor(id: string): number {
-    const anim = animFor[id];
-    const ord = orderOf[id];
-    if (revealCount !== undefined) return ord === undefined || ord < revealCount ? 1 : 0;
-    if (!anim) return 1;
-    const ratio = (progressMs - startMs(anim, ord ?? 0)) / Math.max(1, anim.duration_ms);
-    return Number.isFinite(ratio) ? clamp(ratio, 0, 1) : 1;
-  }
+  // The board frame draws itself in over the scene's first ~12%, before content.
+  const dur = sceneDurationMs ?? DEFAULT_SCENE_MS;
+  const boardReveal = Math.max(0, Math.min(1, progressMs / (dur * 0.12)));
 
   return (
-    <div style={{ ...container, background: scene.background ?? theme.background, padding: '4%' }}>
-      {scene.background ? null : <SceneBackground theme={theme} progressMs={progressMs} />}
-      {scene.elements.map((element) => {
-        const treatment = tpl.elementTreatment?.(element, theme) ?? {};
-        return (
-          <div
-            key={element.id}
-            style={{ ...frameStyle(element.frame), ...styleFor(element), ...treatment.wrapStyle }}
-          >
-            <ElementView
-              element={element}
-              theme={theme}
-              progress={progressFor(element.id)}
-              progressMs={progressMs}
-              words={words}
-              Img={Img}
-              imageObjectFit={treatment.imageObjectFit}
-            />
-          </div>
-        );
-      })}
+    <div style={container}>
+      <WhiteboardSheet theme={theme} reveal={boardReveal} />
+      {drawable.map((layer, i) => (
+        <LayerView key={i} layer={layer} theme={theme} reveal={revealFor(progressMs, windows[i])} Img={Img} />
+      ))}
+      {hand && <Hand x={hand.x} y={hand.y} color={tokens.palette.accent} />}
     </div>
   );
 }

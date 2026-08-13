@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactElement } from 'react';
 import type { SceneTheme } from '../types';
+import { resolveTokens } from '../tokens';
 
 function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace('#', '');
@@ -26,7 +27,8 @@ const GRAIN =
  * signature stays drop-in; `background_style` on the theme is now vestigial.
  */
 export function renderBackground(theme: SceneTheme, _progressMs?: number): ReactElement {
-  const base: CSSProperties = { position: 'absolute', inset: 0, background: theme.background };
+  const { palette } = resolveTokens(theme);
+  const base: CSSProperties = { position: 'absolute', inset: 0, background: palette.bg };
   return (
     <div style={base}>
       {/* faint vignette: a touch of the accent up top, darkened corners */}
@@ -35,7 +37,7 @@ export function renderBackground(theme: SceneTheme, _progressMs?: number): React
           position: 'absolute',
           inset: 0,
           backgroundImage:
-            `radial-gradient(circle at 50% 0%, ${rgba(theme.primary, 0.06)}, transparent 60%),` +
+            `radial-gradient(circle at 50% 0%, ${rgba(palette.accent, 0.06)}, transparent 60%),` +
             `radial-gradient(circle at 50% 120%, rgba(0,0,0,0.45), transparent 60%)`,
         }}
       />

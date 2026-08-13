@@ -1,7 +1,10 @@
 export * from './types';
+export * from './tokens';
 export * from './duration';
 export { Captions } from './Captions';
-export { ElementView } from './ElementView';
+export { Hand } from './Hand';
+export { LayerView } from './LayerView';
+export { DiagramView } from './DiagramView';
+export { drawWindows, revealFor, WhiteboardSheet } from './whiteboard';
 export { SceneBackground } from './SceneBackground';
 export { SceneStage } from './SceneStage';
-export { getTemplate } from './templates/registry';
