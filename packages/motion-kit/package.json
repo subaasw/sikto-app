@@ -1,0 +1,30 @@
+{
+  "name": "@sikto/motion-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Remotion marketing-scene renderer: remocn components + parallax camera rig.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --import tsx ./test/*.test.ts"
+  },
+  "dependencies": {
+    "@remotion/google-fonts": "^4.0.484",
+    "@sikto/scene-kit": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "remotion": ">=4"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.31",
+    "react": "^18.3.1",
+    "remotion": "^4.0.484",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
