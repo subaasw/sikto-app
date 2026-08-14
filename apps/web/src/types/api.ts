@@ -26,6 +26,14 @@ export interface CreateSourceInput {
   template?: string;
   mode?: string;
   voice?: string;
+  model?: string | null;
+}
+
+export interface Provider {
+  id: string;
+  label: string;
+  models: string[];
+  default: string;
 }
 
 export interface ApiQuizItem {

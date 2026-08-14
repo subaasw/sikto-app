@@ -18,6 +18,8 @@ async def create_source_and_job(
     template: str = "explainer",
     mode: str = "auto",
     voice: str = "male",
+    model: str | None = None,
+    user_id: uuid.UUID | None = None,
 ) -> Job:
     source = Source(
         type=source_type,
@@ -26,10 +28,11 @@ async def create_source_and_job(
         template=template,
         mode=mode,
         voice=voice,
+        model=model,
     )
     session.add(source)
     await session.flush()
-    job = Job(source_id=source.id, status=JobStatus.queued)
+    job = Job(source_id=source.id, status=JobStatus.queued, user_id=user_id)
     session.add(job)
     await session.commit()
     await session.refresh(job)
@@ -38,6 +41,16 @@ async def create_source_and_job(
 
 async def get_job(session: AsyncSession, job_id: uuid.UUID) -> Job | None:
     return await session.get(Job, job_id)
+
+
+async def list_recent_jobs(
+    session: AsyncSession, user_id: uuid.UUID | None, limit: int = 20
+) -> list[Job]:
+    stmt = select(Job)
+    if user_id is not None:
+        stmt = stmt.where((col(Job.user_id) == user_id) | col(Job.user_id).is_(None))
+    stmt = stmt.order_by(col(Job.created_at).desc()).limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
 
 
 async def create_notebook(session: AsyncSession, title: str) -> Notebook:

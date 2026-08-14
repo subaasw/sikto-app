@@ -2,17 +2,20 @@ import asyncio
 import json
 import os
 import uuid
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.config import get_settings
+from api.agent.catalog import model_choices
+from api.auth import OptionalUser
+from api.config import Settings, get_settings
 from api.db import SessionLocal, get_session
 from api.ingestion.documents import DOCUMENT_EXTENSIONS
 from api.ingestion.loaders import SOURCE_SEP
-from api.jobs.repository import create_source_and_job, get_job
+from api.jobs.repository import create_source_and_job, get_job, list_recent_jobs
 from api.lesson_mode import DEFAULT_MODE, MODES
 from api.scenes.templates import DEFAULT_TEMPLATE, TEMPLATES
 from api.storage import LocalStorage
@@ -28,6 +31,7 @@ class CreateSourceRequest(BaseModel):
     template: str = DEFAULT_TEMPLATE
     mode: str = DEFAULT_MODE
     voice: str = DEFAULT_VOICE
+    model: str | None = None
 
     def combined_input(self) -> str:
         sources = self.inputs or [self.input]
@@ -52,16 +56,27 @@ class JobResponse(BaseModel):
 
 @router.post("/sources", status_code=201, response_model=CreateSourceResponse)
 async def create_source(
-    body: CreateSourceRequest, session: AsyncSession = Depends(get_session)
+    body: CreateSourceRequest,
+    user: OptionalUser = None,
+    settings: Settings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
 ) -> CreateSourceResponse:
     template = body.template if body.template in TEMPLATES else DEFAULT_TEMPLATE
     mode = body.mode if body.mode in MODES else DEFAULT_MODE
     voice = body.voice if body.voice in VOICES else DEFAULT_VOICE
+    model = body.model if body.model in model_choices(settings) else None
     raw_input = body.combined_input()
     if not raw_input:
         raise HTTPException(status_code=422, detail="at least one source is required")
     job = await create_source_and_job(
-        session, source_type=body.type, raw_input=raw_input, template=template, mode=mode, voice=voice
+        session,
+        source_type=body.type,
+        raw_input=raw_input,
+        template=template,
+        mode=mode,
+        voice=voice,
+        model=model,
+        user_id=user.id if user else None,
     )
     return CreateSourceResponse(job_id=job.id)
 
@@ -77,7 +92,9 @@ async def upload_source_documents(
     for file in files:
         ext = os.path.splitext(file.filename or "")[1].lower()
         if ext not in DOCUMENT_EXTENSIONS:
-            raise HTTPException(status_code=422, detail=f"unsupported file type: {ext or file.filename}")
+            raise HTTPException(
+                status_code=422, detail=f"unsupported file type: {ext or file.filename}"
+            )
         data = await file.read()
         if not data:
             continue  # skip empties rather than failing the whole batch
@@ -128,6 +145,47 @@ async def stream_job(job_id: uuid.UUID, request: Request) -> StreamingResponse:
                 yield f"data: {payload}\n\n"
             if snapshot[0] in _TERMINAL:
                 return
+            await asyncio.sleep(1.0)
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.get("/events")
+async def stream_events(request: Request, user: OptionalUser = None) -> StreamingResponse:
+    """App-wide job stream: every job update for the current user on one
+    connection, so the UI keeps live progress while navigating anywhere."""
+    user_id = user.id if user else None
+
+    async def events() -> AsyncIterator[str]:
+        seen: dict[uuid.UUID, tuple[str, str | None, str | None]] = {}
+        for _ in range(600):
+            if await request.is_disconnected():
+                return
+            async with SessionLocal() as session:
+                jobs = await list_recent_jobs(session, user_id)
+                payloads = [
+                    (
+                        job.id,
+                        (job.status, job.step, job.error),
+                        json.dumps(
+                            {
+                                "id": str(job.id),
+                                "status": job.status,
+                                "step": job.step,
+                                "error": job.error,
+                            }
+                        ),
+                    )
+                    for job in jobs
+                ]
+            for job_id, snapshot, payload in payloads:
+                if seen.get(job_id) != snapshot:
+                    seen[job_id] = snapshot
+                    yield f"data: {payload}\n\n"
             await asyncio.sleep(1.0)
 
     return StreamingResponse(

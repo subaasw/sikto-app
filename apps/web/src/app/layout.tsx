@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Archivo_Black, Bricolage_Grotesque, Caveat, Geist, Geist_Mono } from 'next/font/google';
 import { GeistPixelSquare } from 'geist/font/pixel';
 import { ThemeProvider } from 'next-themes';
 import './globals.css';
@@ -15,12 +15,37 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
+const archivoBlack = Archivo_Black({
+  variable: '--font-archivo-black',
+  weight: '400',
+  subsets: ['latin'],
+});
+
+const bricolageGrotesque = Bricolage_Grotesque({
+  variable: '--font-bricolage-grotesque',
+  weight: ['700', '800'],
+  subsets: ['latin'],
+});
+
+const caveat = Caveat({
+  variable: '--font-caveat',
+  weight: ['500', '600', '700'],
+  subsets: ['latin'],
+});
+
 export const metadata: Metadata = {
   title: 'Sikto',
   description: 'Video automation and microlearning platform.',
 };
 
-const fontVars = `${geistSans.variable} ${geistMono.variable} ${GeistPixelSquare.variable}`;
+const fontVars = [
+  geistSans.variable,
+  geistMono.variable,
+  GeistPixelSquare.variable,
+  archivoBlack.variable,
+  bricolageGrotesque.variable,
+  caveat.variable,
+].join(' ');
 
 export default function RootLayout({
   children,
@@ -29,18 +54,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${fontVars} h-full antialiased`} suppressHydrationWarning>
-      <head>
-        {/* Loaded by real family name ("Caveat"/"Geist") so the scene canvas —
-            which references families literally and measures them on a canvas —
-            resolves the same fonts the Remotion MP4 does. */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Bricolage+Grotesque:wght@700;800&family=Caveat:wght@500;600;700&family=Geist:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body className="min-h-full bg-background font-sans text-foreground">
+      <body className="min-h-full bg-background font-sans text-foreground" suppressHydrationWarning>
         <ThemeProvider attribute="data-theme" defaultTheme="system" enableSystem>
           <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>

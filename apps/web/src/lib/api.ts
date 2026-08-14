@@ -1,4 +1,5 @@
 import { apiBase } from '@/lib/config';
+import { readModel } from '@/lib/model-preference';
 import type {
   ApiCourse,
   ApiLesson,
@@ -8,6 +9,7 @@ import type {
   LessonSummary,
   MediaAsset,
   MediaSearchResult,
+  Provider,
   SceneAudioTrack,
   Template,
 } from '@/types/api';
@@ -83,6 +85,10 @@ export function listTemplates(): Promise<Template[]> {
   return request('/templates');
 }
 
+export function listProviders(): Promise<Provider[]> {
+  return request('/providers');
+}
+
 export function listAssets(): Promise<MediaAsset[]> {
   return request('/assets', { cache: 'no-store' });
 }
@@ -146,7 +152,7 @@ export async function* streamChat(
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, model: readModel() }),
     signal,
   });
   if (!res.ok || !res.body) {

@@ -127,7 +127,7 @@ async def run_course_plan(
         )
         await update_job(session, job_id, status=JobStatus.planning, step="planning the course")
         try:
-            llm: StructuredLLM | None = structured_llm_from_settings()
+            llm: StructuredLLM | None = structured_llm_from_settings(model=source.model)
         except Exception:
             llm = None
         draft = await plan_course(document.text, document.title or "", "", llm)
@@ -184,7 +184,7 @@ async def run_scene_pipeline(
         profile = "slide" if source.mode == "course" else "video"
         scene_doc = scene_doc.model_copy(update={"profile": profile})
         try:
-            art_llm: StructuredLLM | None = structured_llm_from_settings()
+            art_llm: StructuredLLM | None = structured_llm_from_settings(model=source.model)
         except Exception:
             art_llm = None
         # Creative direction: the LLM paints the per-video look (theme colours/font)

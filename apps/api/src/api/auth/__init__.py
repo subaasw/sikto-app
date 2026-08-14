@@ -4,7 +4,13 @@ Public surface for the rest of the app; import from `api.auth` directly.
 """
 
 from .cookies import clear_access_cookie, set_access_cookie
-from .dependencies import CurrentUser, get_auth_manager, get_current_user
+from .dependencies import (
+    CurrentUser,
+    OptionalUser,
+    get_auth_manager,
+    get_current_user,
+    get_optional_user,
+)
 from .errors import (
     AuthError,
     EmailAlreadyExistsError,
@@ -24,12 +30,14 @@ __all__ = [
     "InvalidCredentialsError",
     "InvalidTokenError",
     "LoginRequest",
+    "OptionalUser",
     "SignupRequest",
     "UserResponse",
     "authenticate_user",
     "clear_access_cookie",
     "get_auth_manager",
     "get_current_user",
+    "get_optional_user",
     "register_auth_error_handler",
     "register_user",
     "set_access_cookie",

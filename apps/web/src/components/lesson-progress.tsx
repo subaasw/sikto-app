@@ -6,6 +6,7 @@ import { AlertCircle, Check, Loader2, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { getJob, type Job, type JobStatus } from '@/lib/api';
+import { useJobEvent } from '@/components/job-events-provider';
 import { cn } from '@/lib/utils';
 
 const STEPS: { key: JobStatus; label: string; hint: string }[] = [
@@ -23,49 +24,32 @@ function fmtElapsed(seconds: number): string {
 }
 
 /**
- * Live progress for a generating lesson. Polls the job; when it finishes it
- * refreshes the route so the server component swaps in the finished lesson —
- * no manual "view lesson" hop. Renders the failure state inline too.
- *
- * ponytail: polls instead of SSE — the browser reaches the API through the
- * Next.js /api rewrite, which buffers a long-lived text/event-stream so events
- * never arrive. Discrete GETs proxy fine. Switch to SSE only if the browser
- * talks to the API origin directly.
+ * Live progress for a generating lesson. Job state arrives on the app-wide SSE
+ * stream (JobEventsProvider); when it finishes the route refreshes so the server
+ * component swaps in the finished lesson. Renders the failure state inline too.
  */
 export function LessonProgress({ jobId, initialJob }: { jobId: string; initialJob?: Job | null }) {
   const router = useRouter();
-  const [job, setJob] = useState<Job | null>(initialJob ?? null);
+  const [fetched, setFetched] = useState<Job | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const streamed = useJobEvent(jobId);
+  const job = streamed ?? fetched ?? initialJob ?? null;
 
-  // Poll the job until it's done or failed.
   useEffect(() => {
     let active = true;
-    let timer: ReturnType<typeof setTimeout>;
-
-    async function poll() {
-      try {
-        const next = await getJob(jobId);
-        if (!active) return;
-        setJob(next);
-        if (next.status === 'done') {
-          // Small beat on "Ready", then re-render the route into the lesson.
-          timer = setTimeout(() => active && router.refresh(), 650);
-          return;
-        }
-        if (next.status === 'failed') return;
-        timer = setTimeout(poll, 1200);
-      } catch {
-        if (!active) return;
-        timer = setTimeout(poll, 2500);
-      }
-    }
-
-    poll();
+    getJob(jobId)
+      .then((next) => active && setFetched(next))
+      .catch(() => {});
     return () => {
       active = false;
-      clearTimeout(timer);
     };
-  }, [jobId, router]);
+  }, [jobId]);
+
+  useEffect(() => {
+    if (job?.status !== 'done') return;
+    const timer = setTimeout(() => router.refresh(), 650);
+    return () => clearTimeout(timer);
+  }, [job?.status, router]);
 
   // Tick an elapsed timer while work is in flight.
   useEffect(() => {

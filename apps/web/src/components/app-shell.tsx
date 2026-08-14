@@ -9,6 +9,7 @@ import {
   LibraryBig,
   LogOut,
   MessagesSquare,
+  Settings2,
   Sparkles,
   type LucideIcon,
 } from 'lucide-react';
@@ -17,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { PixelLogo } from '@/components/pixel-logo';
 import { useAuth } from '@/components/auth/auth-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { JobEventsProvider } from '@/components/job-events-provider';
 
 const nav: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/', label: 'Create', icon: Sparkles },
@@ -24,6 +26,7 @@ const nav: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/templates', label: 'Templates', icon: LayoutTemplate },
   { href: '/media', label: 'Media', icon: Images },
   { href: '/chat', label: 'Chat', icon: MessagesSquare },
+  { href: '/settings', label: 'Settings', icon: Settings2 },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -37,45 +40,47 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col self-start overflow-y-auto border-r-2 border-border bg-surface px-3 py-4 sm:flex">
-        <div className="mb-8 flex items-center justify-between gap-2 px-2">
-          <Link href="/" className="flex items-center gap-2.5">
-            <span className="flex size-8 items-center justify-center border-2 border-border bg-primary text-primary-foreground shadow-pixel-sm">
-              <PixelLogo size={20} />
-            </span>
-            <span className="font-pixel text-lg tracking-tight">Sikto</span>
-          </Link>
-          <ThemeToggle />
-        </div>
+    <JobEventsProvider>
+      <div className="flex min-h-screen">
+        <aside className="border-border bg-surface sticky top-0 hidden h-screen w-60 shrink-0 flex-col self-start overflow-y-auto border-r-2 px-3 py-4 sm:flex">
+          <div className="mb-8 flex items-center justify-between gap-2 px-2">
+            <Link href="/" className="flex items-center gap-2.5">
+              <span className="border-border bg-primary text-primary-foreground shadow-pixel-sm flex size-8 items-center justify-center border-2">
+                <PixelLogo size={20} />
+              </span>
+              <span className="font-pixel text-lg tracking-tight">Sikto</span>
+            </Link>
+            <ThemeToggle />
+          </div>
 
-        <nav className="flex flex-col gap-1.5">
-          {nav.map((item) => {
-            const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 border-2 px-3 py-2 text-sm font-medium transition-colors',
-                  active
-                    ? 'border-border bg-primary text-primary-foreground shadow-pixel-sm'
-                    : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground',
-                )}
-              >
-                <Icon className="size-4" />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+          <nav className="flex flex-col gap-1.5">
+            {nav.map((item) => {
+              const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'flex items-center gap-3 border-2 px-3 py-2 text-sm font-medium transition-colors',
+                    active
+                      ? 'border-border bg-primary text-primary-foreground shadow-pixel-sm'
+                      : 'text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground border-transparent',
+                  )}
+                >
+                  <Icon className="size-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
 
-        {user ? <ProfileMenu user={user} onLogout={handleLogout} /> : null}
-      </aside>
+          {user ? <ProfileMenu user={user} onLogout={handleLogout} /> : null}
+        </aside>
 
-      <main className="flex-1">{children}</main>
-    </div>
+        <main className="flex-1">{children}</main>
+      </div>
+    </JobEventsProvider>
   );
 }
 
@@ -111,13 +116,13 @@ function ProfileMenu({
       {open ? (
         <div
           role="menu"
-          className="absolute inset-x-0 bottom-full mb-2 border-2 border-border bg-surface shadow-pixel-sm"
+          className="border-border bg-surface shadow-pixel-sm absolute inset-x-0 bottom-full mb-2 border-2"
         >
           <button
             type="button"
             role="menuitem"
             onClick={onLogout}
-            className="flex w-full items-center gap-3 px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground flex w-full items-center gap-3 px-3 py-2 text-sm font-medium transition-colors"
           >
             <LogOut className="size-4" />
             Log out
@@ -135,16 +140,16 @@ function ProfileMenu({
           open ? 'border-border bg-muted' : 'border-border-soft hover:border-border hover:bg-muted',
         )}
       >
-        <span className="flex size-7 shrink-0 items-center justify-center border-2 border-border bg-primary text-xs font-semibold text-primary-foreground">
+        <span className="border-border bg-primary text-primary-foreground flex size-7 shrink-0 items-center justify-center border-2 text-xs font-semibold">
           {user.name.charAt(0).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{user.name}</p>
-          <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+          <p className="text-muted-foreground truncate text-xs">{user.email}</p>
         </div>
         <ChevronUp
           className={cn(
-            'size-4 shrink-0 text-muted-foreground transition-transform',
+            'text-muted-foreground size-4 shrink-0 transition-transform',
             !open && 'rotate-180',
           )}
         />

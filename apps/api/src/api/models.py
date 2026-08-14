@@ -44,6 +44,7 @@ class Source(SQLModel, table=True):
     template: str = "explainer"  # lesson visual template (see scenes/templates.py)
     mode: str = "auto"  # course | video | auto (see lesson_mode.py)
     voice: str = "male"  # narration voice: male | female (see voices.py)
+    model: str | None = None
     created_at: datetime | None = _created_at()
 
 
@@ -52,6 +53,7 @@ class Job(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     source_id: uuid.UUID = Field(foreign_key="sources.id")
+    user_id: uuid.UUID | None = Field(default=None, foreign_key="users.id", index=True)
     status: str = "queued"
     step: str | None = None
     error: str | None = None

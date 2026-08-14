@@ -17,6 +17,7 @@ class ChatMessageInput(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessageInput]
+    model: str | None = None
 
 
 @router.post("/chat")
@@ -27,5 +28,6 @@ async def chat(
     create lessons, list them, check job status, and search the user's material."""
     messages = [ChatMessage(role=m.role, content=m.content) for m in body.messages]
     return StreamingResponse(
-        stream_agent_chat(messages, session), media_type="text/plain; charset=utf-8"
+        stream_agent_chat(messages, session, model=body.model),
+        media_type="text/plain; charset=utf-8",
     )

@@ -44,3 +44,22 @@ async def get_current_user(
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+async def get_optional_user(
+    request: Request,
+    settings: Annotated[Settings, Depends(get_settings)],
+    manager: Annotated[AuthManager, Depends(get_auth_manager)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> User | None:
+    token = request.cookies.get(settings.auth_cookie_name)
+    if not token:
+        return None
+    try:
+        user_id = manager.verify_access_token(token)
+    except InvalidTokenError:
+        return None
+    return await repository.get_user_by_id(session, user_id)
+
+
+OptionalUser = Annotated[User | None, Depends(get_optional_user)]

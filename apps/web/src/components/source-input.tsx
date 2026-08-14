@@ -20,6 +20,7 @@ import { type ChangeEvent, type FormEvent, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl, type SegmentOption } from '@/components/ui/segmented-control';
 import { createSource, uploadSourceDocuments } from '@/lib/api';
+import { readModel } from '@/lib/model-preference';
 
 // Mirrors DOCUMENT_EXTENSIONS in api.ingestion.documents (MarkItDown-backed).
 const DOCUMENT_ACCEPT = '.pdf,.epub,.docx,.pptx,.xlsx';
@@ -95,7 +96,14 @@ export function SourceInput() {
     setSubmitting(true);
     setError(null);
     try {
-      const { job_id } = await createSource({ type: 'mixed', inputs, template, mode, voice });
+      const { job_id } = await createSource({
+        type: 'mixed',
+        inputs,
+        template,
+        mode,
+        voice,
+        model: readModel(),
+      });
       router.push(`/lessons/${job_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');

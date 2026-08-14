@@ -22,6 +22,7 @@ from api.routers import (
     health,
     lessons,
     notebooks,
+    providers,
     sources,
     templates,
 )
@@ -85,6 +86,7 @@ app.include_router(notebooks.router)
 app.include_router(templates.router)
 app.include_router(assets.router)
 app.include_router(courses.router)
+app.include_router(providers.router)
 
 # Serve rendered videos and audio from local storage (Starlette's StaticFiles
 # supports HTTP range requests, so videos seek correctly in the browser).

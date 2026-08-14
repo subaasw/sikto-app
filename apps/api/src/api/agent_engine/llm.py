@@ -91,7 +91,9 @@ class FallbackStructuredLLM:
                     note_failure(self._models[i])  # next request skips this model
                 nxt = self._labels[i + 1] if i + 1 < len(self._labels) else None
                 tail = f" → trying {nxt}" if nxt else ""
-                logger.warning("%s %s for %s%s", self._labels[i], short_error(exc), schema.__name__, tail)
+                logger.warning(
+                    "%s %s for %s%s", self._labels[i], short_error(exc), schema.__name__, tail
+                )
         raise BrainError("all LLM providers failed") from last_exc
 
 
@@ -148,13 +150,19 @@ class LangChainStructuredLLM:
         ) from last_exc
 
 
-def structured_llm_from_settings(*, temperature: float = 0.4) -> StructuredLLM:
+def structured_llm_from_settings(
+    *, temperature: float = 0.4, model: str | None = None
+) -> StructuredLLM:
     """Build the brain's LLM: NVIDIA (free, throttled to its RPM) when keyed, with
-    DeepSeek as the automatic fallback. Whichever keys are set, NVIDIA goes first."""
+    DeepSeek as the automatic fallback. Whichever keys are set, NVIDIA goes first.
+    A `model` choice ("provider:id", validated against the catalog) leads the chain,
+    keeping the rest as fallbacks."""
     from langchain_openai import ChatOpenAI
 
+    from api.agent.catalog import lead_with_choice
+
     settings = get_settings()
-    chain = agent_llm_chain(settings)
+    chain = lead_with_choice(agent_llm_chain(settings), settings, model)
     if not chain:
         raise BrainError("no agent LLM configured: set NVIDIA_API_KEY or DEEPSEEK_API_KEY")
 

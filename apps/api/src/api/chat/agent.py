@@ -17,13 +17,14 @@ from openai import AsyncOpenAI
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.agent.catalog import lead_with_choice
 from api.agent.model_switch import note_failure
 from api.agent.providers import agent_llm_chain, provider_label
 from api.chat.stream import ChatMessage
 from api.config import get_settings
-from api.logger import short_error
 from api.jobs.repository import create_source_and_job, get_job, list_lessons
 from api.lesson_mode import DEFAULT_MODE, MODES
+from api.logger import short_error
 from api.models import Lesson, Source
 from api.scenes.templates import DEFAULT_TEMPLATE, TEMPLATES
 from api.voices import DEFAULT_VOICE
@@ -39,6 +40,7 @@ def _is_rate_limit(exc: BaseException) -> bool:
         getattr(exc, "response", None), "status_code", None
     )
     return status == 429 or "RateLimit" in type(exc).__name__
+
 
 SYSTEM_PROMPT = (
     "You are Sikto, an assistant for a microlearning and video-automation platform. "
@@ -114,8 +116,12 @@ async def _create_lesson(session: AsyncSession, args: dict) -> dict:
     template = args.get("template") if args.get("template") in TEMPLATES else DEFAULT_TEMPLATE
     mode = args.get("mode") if args.get("mode") in MODES else DEFAULT_MODE
     job = await create_source_and_job(
-        session, source_type="mixed", raw_input=text,
-        template=template, mode=mode, voice=DEFAULT_VOICE,
+        session,
+        source_type="mixed",
+        raw_input=text,
+        template=template,
+        mode=mode,
+        voice=DEFAULT_VOICE,
     )
     return {"job_id": str(job.id), "url": f"/lessons/{job.id}", "status": "queued"}
 
@@ -188,11 +194,12 @@ async def _run_tool(name: str, raw_args: str, session: AsyncSession) -> str:
 
 
 async def stream_agent_chat(
-    messages: Sequence[ChatMessage], session: AsyncSession
+    messages: Sequence[ChatMessage], session: AsyncSession, model: str | None = None
 ) -> AsyncIterator[str]:
-    """Run the tool loop and stream the assistant's final text reply."""
+    """Run the tool loop and stream the assistant's final text reply. A validated
+    `model` choice leads the chain; the rest stay as fallbacks."""
     settings = get_settings()
-    chain = agent_llm_chain(settings)
+    chain = lead_with_choice(agent_llm_chain(settings), settings, model)
     if not chain:
         # Surface config errors in the reply itself — the StreamingResponse has
         # already sent 200, so a raise here would just look like an empty answer.
@@ -221,8 +228,11 @@ async def stream_agent_chat(
                         await config.rate_limiter.aacquire(blocking=True)
                     try:
                         resp = await client.chat.completions.create(
-                            model=config.model, messages=convo, tools=TOOLS,  # type: ignore[arg-type]
-                            stream=False, extra_body=config.extra_body,
+                            model=config.model,
+                            messages=convo,
+                            tools=TOOLS,  # type: ignore[arg-type]
+                            stream=False,
+                            extra_body=config.extra_body,
                         )
                         break
                     except Exception as exc:
@@ -244,7 +254,10 @@ async def stream_agent_chat(
                             {
                                 "id": c.id,
                                 "type": "function",
-                                "function": {"name": c.function.name, "arguments": c.function.arguments},
+                                "function": {
+                                    "name": c.function.name,
+                                    "arguments": c.function.arguments,
+                                },
                             }
                             for c in calls
                         ],
@@ -257,7 +270,10 @@ async def stream_agent_chat(
             return
         except Exception as exc:  # provider down / no tool support → try the next
             logger.warning(
-                "agent chat model %s (%s) failed", config.model, provider_label(config.base_url), exc_info=True
+                "agent chat model %s (%s) failed",
+                config.model,
+                provider_label(config.base_url),
+                exc_info=True,
             )
             note_failure(config.model)  # cooldown so the next request skips it
             last_exc = exc
